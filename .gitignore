@@ -1,0 +1,22 @@
+# Jak 3 En Ligne : seul le code du mod est suivi (pas le jeu, pas les donnees des joueurs)
+/*
+!/.gitignore
+!/README.md
+!/goal_src/
+/goal_src/jak1/
+/goal_src/jak2/
+/goal_src/jakx/
+!/online/
+/online/*
+!/online/src/
+!/online/LISEZ-MOI.txt
+!/online/SAUVEGARDER-MA-CLE-ADMIN.bat
+!/online/RESTAURER-MA-CLE-ADMIN.bat
+!/custom_assets/
+/custom_assets/**/*.glb
+/custom_assets/**/*.png
+/custom_assets/**/*.wav
+*.exe
+*.ini
+*.dat
+*.log

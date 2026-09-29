@@ -1,0 +1,15 @@
+// JAK 3 EN LIGNE : carte "Village de Jak 1" (fabriquee par build_maps.py)
+{
+  "long_name": "ow-jak1",
+  "iso_name": "OWJAK1",
+  "nickname": "oj1",
+  "gltf_file": "custom_assets/jak3/levels/ow-jak1/ow-jak1.glb",
+  "automatic_wall_detection": true,
+  "automatic_wall_angle": 45.0,
+  "double_sided_collide": true,
+  "base_id": 700,
+  "custom_models": [
+    "ow-plat"
+  ],
+  "actors": []
+}

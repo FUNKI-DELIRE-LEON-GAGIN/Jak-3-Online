@@ -1,0 +1,15 @@
+// JAK 3 EN LIGNE : "niveau" jamais charge. Son FR3 (owcom.fr3) porte les maillages des modeles
+// ajoutes par le mod (robot precurseur des boss, plateformes des parcours...). online-world.gc le
+// fait charger par le rendu PC quand on en a besoin (*online-extra-fr3*).
+{
+  "long_name": "owcom",
+  "iso_name": "OWCOM",
+  "nickname": "owc",
+  "gltf_file": "custom_assets/jak3/levels/owcom/owcom.glb",
+  "automatic_wall_detection": true,
+  "automatic_wall_angle": 45.0,
+  "double_sided_collide": false,
+  "base_id": 400,
+  "custom_models": ["zone-boss", "ow-keira", "ow-jak2", "ow-jak1", "ow-jak4", "ow-tess"],
+  "actors": []
+}

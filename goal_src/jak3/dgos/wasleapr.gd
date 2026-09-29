@@ -1,0 +1,13 @@
+("WASLEAPR.DGO"
+ ("pilot-recorder.o"
+  "was-leaper-race-h.o"
+  "flut-racer.o"
+  "was-leaper-race.o"
+  "tpage-1663.go"
+  "tpage-1694.go"
+  "tpage-1589.go"
+  "tpage-1707.go"
+  "monk-ag.go"
+  "flut-wild-ag.go"
+  "wasleapr.go"
+ ))

@@ -1,0 +1,259 @@
+﻿JAK 3 EN LIGNE - jusqu'à 100 joueurs par session
+=================================================
+
+Le jeu est celui d'origine (plus de joueur 2 local) + le mode en ligne.
+La langue suit celle de Windows (réglable dans la fenêtre du programme).
+Chaque joueur joue SA partie (sa sauvegarde, ses missions, sa progression).
+Les autres joueurs de la session apparaissent dans ton monde (Jak animé + pseudo
++ points de vie), et vous pouvez vous battre (PvP).
+
+Les avatars reproduisent EXACTEMENT ce que fait l'autre joueur : tout son
+squelette est envoyé (Jak, Daxter sur l'épaule, arme en main, planche,
+Dark Jak, Light Jak et ses effets lumineux, animations spéciales...).
+Les ailes de Light Jak d'un autre joueur ne s'affichent que si tu es aussi en
+Light Jak (le jeu ne les charge qu'à ce moment-là).
+
+En session, le menu START (l'anneau et la page EN LIGNE) ne met PAS le jeu en
+pause (c'est un jeu en ligne) : le monde, les ennemis et les autres joueurs
+continuent. Jak reste immobile pendant le menu, et le menu se ferme tout seul si
+tu meurs. Les pages carte / sauvegarder / charger / options, elles, mettent le
+jeu en pause comme d'habitude (elles ont besoin de la mémoire de l'image).
+
+
+DÉMARRAGE (une seule fois)
+--------------------------
+  Double-clique sur  data\online\Jak3Online.exe
+  C'est tout. Il se connecte tout seul à internet (serveur GRATUIT, aucun
+  compte, aucun port à ouvrir), se range à côté de l'horloge de Windows et
+  démarre ensuite automatiquement avec Windows.
+  => Les fois suivantes : tu lances juste le mod normalement.
+
+  Pourquoi ce petit programme ? Le jeu (gk.exe) n'a aucune fonction internet :
+  Jak3Online.exe fait le lien. Il n'accède pas à la mémoire du jeu (rien de
+  suspect pour les antivirus), il échange deux fichiers dans data\online\bridge.
+
+
+DANS LE JEU
+-----------
+  Écran titre : EN LIGNE (tout en haut, au-dessus de Nouvelle partie)
+  En jeu      : START puis SELECT   (ou Start > Options > En ligne)
+
+  - MONDE EN LIGNE (SESSION PUBLIQUE): le monde en ligne (voir plus bas), la session de tout
+                                      le monde, sans code (MONDE1 ; si elle est pleine à 100 :
+                                      MONDE2...). PvP activé.
+  - CRÉER UNE SESSION PUBLIQUE      : visible dans la liste, tout le monde peut rejoindre
+  - CRÉER UNE SESSION PRIVÉE (CODE) : un code à 6 caractères s'affiche, donne-le à tes amis
+  - JOUEURS MAX : 2 à 100   /   PVP : OUI ou NON
+  - REJOINDRE UNE SESSION PUBLIQUE  : liste des sessions (CARRÉ = actualiser)
+  - REJOINDRE AVEC UN CODE          : haut/bas = lettre, gauche/droite = position
+  - PSEUDO : change ton pseudo directement dans le jeu (ou dans la fenêtre du programme)
+  En session : LISTE DES JOUEURS, PvP et PUBLIQUE/PRIVÉE (hôte), PSEUDO, QUITTER.
+  Depuis l'écran titre, une fois la session créée ou rejointe :
+    LANCER : NOUVELLE PARTIE  ou  LANCER : CHARGER UNE PARTIE
+
+  L'HÔTE est celui qui a créé la session. S'il quitte (ou si son jeu plante),
+  la session continue : le joueur arrivé le plus tôt devient l'hôte
+  automatiquement. La session disparaît quand le dernier joueur part.
+  Si ta connexion coupe, tu reviens tout seul dans ta session.
+
+
+PVP
+---
+  Poings/pieds, roulade, Dark Jak, armes, projectiles, tirs des véhicules, tir de gravité
+  et flut-flut touchent les autres joueurs. Éliminations annoncées à tous (en haut à droite).
+  Quand un joueur est touché : Jak crie, des étincelles jaillissent, et on voit son animation.
+  Un joueur ÉLIMINÉ explose et s'effondre : tout le monde le voit mourir.
+  VÉHICULES : un véhicule lancé ÉCRASE un joueur à pied ; les véhicules rebondissent l'un sur
+  l'autre, et un CHOC VIOLENT abîme les DEUX véhicules (plus tu vas vite, plus ça fait mal) :
+  à force de percuter le véhicule d'un autre, il explose ! Tirer sur un joueur qui conduit
+  abîme aussi SON VÉHICULE (la destruction rapporte des orbes) ; le tir de gravité fait
+  s'envoler le véhicule visé.
+
+
+TOUCHES EN SESSION (clavier / manette)
+--------------------------------------
+  T              : écrire dans le CHAT (Entrée = envoyer, Échap = annuler)
+  SELECT  (TAB)  : LE MENU (flèches / croix directionnelle, Entrée / X, Échap / Rond) :
+                     JOUEURS    : niveau, rang, pseudo et zone de chaque joueur ; choisis un
+                                  joueur pour aller vers lui ou l'ignorer
+                     BOUTIQUE   : VÉHICULES (achète-les puis appelle-les PARTOUT),
+                                  SUPER-POUVOIRS, soins, munitions, réparation du véhicule
+                     ÉVÉNEMENTS : l'événement en cours + lancer une COURSE
+                     MOI        : tes stats (niveau, rang, orbes, éliminations, série),
+                                  afficher/masquer la liste, les pseudos, le chat ;
+                                  appel rapide de tes véhicules
+                     ADMIN      : SEULEMENT pour le créateur (monde en ligne) ou l'hôte
+                                  (session privée) - voir plus bas
+  TRIANGLE au Naughty Ottsel : la boutique d'armes, JetBoard, Dark / Light Jak, armures.
+
+  À l'écran :
+   - en haut à gauche : tes orbes (orbe précurseur qui tourne), ton NIVEAU et ton RANG,
+     ta barre d'expérience, tes super-pouvoirs actifs (avec le temps restant), puis la
+     liste des joueurs (niveau, pseudo, zone) ;
+   - en haut au milieu : l'événement du monde (boss, trésor...) ;
+   - en haut à droite : les éliminations, arrivées, départs ;
+   - au milieu : tes gains (+orbes, +XP) ; à gauche : le chat ;
+   - MINI-CARTE et CARTE du menu : chaque joueur a la MÊME flèche que toi, tournée dans
+     le sens où il regarde, avec SA couleur (la même chez tout le monde). Flèche rouge qui
+     clignote = tête mise à prix. Le lieu de l'événement est marqué sur la carte.
+   - au-dessus des joueurs : niveau + pseudo (couleur du rang) et une barre de vie. Les
+     étiquettes se rangent les unes au-dessus des autres (plus de texte qui se chevauche).
+
+
+QUI A LES POUVOIRS DE MODÉRATION ?
+----------------------------------
+  - LE MONDE EN LIGNE (session publique) : UNIQUEMENT LE CRÉATEUR DU MOD. C'est vérifié
+    par une clé cryptographique qui n'existe que sur le PC du créateur (chiffrée par
+    Windows dans %APPDATA%\Jak3Online\createur.dat). Chaque ordre (téléporter, geler,
+    bannir, donner des orbes ou des véhicules, lancer un événement...) est SIGNÉ avec
+    cette clé : les autres jeux refusent tout ordre qui n'est pas signé par elle.
+    Changer de pseudo ou copier le mod ne donne AUCUN pouvoir.
+  - session privée : l'HÔTE de la session (sauf les cadeaux d'orbes / véhicules).
+  Onglet ADMIN : lancer un BOSS (au hasard, ROBO BOSS, TITAN, BÊTE DU DÉSERT, DARK JAK
+  GÉANT) / une PLUIE D'ORBES / un TRÉSOR / une ZONE / le DOUBLE XP / une PLUIE DE MÉTÉORES
+  à l'endroit où tu es, une CHASSE À L'HOMME sur toi (le premier qui t'élimine gagne
+  1500 orbes), un PARCOURS sur une des 5 cartes, PvP, annonce, heure du monde, soigner /
+  TÉLÉPORTER TOUT LE MONDE PRÈS DE TOI / geler tout le monde, REMETTRE LE MONDE À NEUF
+  (ennemis, caisses et objets renaissent chez tout le monde), débannir.
+  Sur un joueur (onglet JOUEURS) : le téléporter près de toi, le soigner, le geler, le
+  rendre muet, le projeter en l'air, le foudroyer, l'EXPULSER, le BANNIR, lui donner
+  500 / 5000 orbes ou TOUS les véhicules, mettre une PRIME de 1000 / 5000 orbes sur sa
+  tête, lancer une CHASSE À L'HOMME sur lui.
+  "Ma version du mod = la version officielle" N'EST PAS UNE SAUVEGARDE : ça dit seulement
+  aux autres jeux que ta version du mod est la bonne (anti-triche). C'est fait tout seul
+  quand tu entres dans le monde ; l'avoir cliqué ne change rien et ne casse rien.
+
+
+LE MONDE EN LIGNE (LA SESSION PUBLIQUE)
+---------------------------------------
+  Façon "GTA en ligne" : tout le monde dans le même monde.
+  - Le jeu est terminé à 100 % : toute la carte est ouverte et les 65 MISSIONS
+    SECONDAIRES sont jouables et rapportent des orbes. Tu commences SANS RIEN.
+  - L'ARGENT, ce sont les ORBES : orbes ramassées, missions secondaires, ennemis,
+    éliminations, butin des joueurs éliminés, primes, courses, événements, bonus du jour.
+  - Quand tu élimines quelqu'un, il LÂCHE une partie de ses orbes (5 %) que tu ramasses.
+    Éliminer encore et encore le MÊME joueur rapporte de moins en moins
+    (100 %, 60 %, 30 %, 15 %, puis plus rien pendant 15 minutes).
+  - SÉRIES : 3, 5, 8, 12 éliminations sans mourir = bonus et annonce à tout le monde.
+  - NIVEAUX et RANGS : Recrue (1), Pillard (5), Chasseur (10), Guerrier (15),
+    Commando (20), Champion (30), Héros (40), Légende (50), Précurseur (75).
+    Chaque niveau gagné rapporte des orbes (niveau x 10, +100 à chaque nouveau rang) et
+    débloque de nouveaux objets (armes, véhicules, pouvoirs ont un NIVEAU REQUIS).
+  - VÉHICULES : ils se conduisent PARTOUT où il y a de la place : les bolides du désert
+    dans Haven City, les motos et le zoomer de Haven dans le désert... Achète-les dans
+    SELECT > BOUTIQUE (prix + niveau requis), puis appelle-les quand tu veux. Un seul
+    véhicule appelé à la fois. Ceux que tu possèdes sont aussi déverrouillés au garage.
+  - SUPER-POUVOIRS (SELECT > BOUTIQUE) : Turbo (course 60 % plus rapide), Super saut,
+    Peau d'acier (dégâts reçus divisés par deux), Fantôme (invisible sur les cartes des
+    autres), Radar (tous les joueurs sur ta mini-carte), Double XP, Aimant à orbes (orbes
+    doublées), Régénération.
+  - ÉVÉNEMENTS toutes les 6 à 9 minutes, quelque part près d'un joueur :
+     * ALERTE BOSS : un boss géant apparaît. 6 boss : les VRAIS boss (le ROBO BOSS, robot
+       précurseur géant ; le TITAN, robot Dark Maker de 40 m qui lance des bombes ; la
+       BÊTE DU DÉSERT, énorme et très rapide) et 3 Jak géants (DARK JAK GÉANT, OMBRE DE
+       JAK, JAK DÉCHU). Tout le monde tape dessus (poings, armes, Dark Jak, et même en
+       FONÇANT dessus en véhicule). Ses points de vie sont partagés ; quand il tombe, chacun
+       gagne des orbes et de l'XP selon SA PART DES DÉGÂTS (les vrais boss rapportent plus).
+       Le boss est AU MÊME ENDROIT chez tout le monde (un seul jeu le pilote, les autres
+       le suivent) et le point rouge de la carte est sur lui. En VÉHICULE on n'est PAS
+       à l'abri : il frappe, écrase et envoie les véhicules en l'air, il tire de loin.
+     * PLUIE DE MÉTÉORES : des météores tombent dans la zone (les mêmes chez tout le
+       monde) ; celui qui tient le plus longtemps dans la zone gagne.
+     * CHASSE À L'HOMME (lancée par le créateur) : la cible est marquée en rouge sur la
+       carte ; le premier qui l'élimine gagne 1500 orbes.
+     * PARCOURS : tout le monde part sur une CARTE DU MOD (compte à rebours ; ROND = ne pas
+       participer ; on peut rejoindre plus tard par SELECT > ÉVÉNEMENTS). Le PREMIER qui
+       arrive EN HAUT gagne : plus la carte est dure, plus ça rapporte. Dès qu'il y a un
+       gagnant, les autres sont renvoyés au port de Haven.
+     * PLUIE D'ORBES : des orbes tombent partout autour (gains doublés sur place).
+     * CHASSE AU TRÉSOR : une orbe dorée géante est cachée dans la zone, l'indice
+       "froid / tiède / chaud / brûlant" te guide ; le premier qui la touche gagne.
+     * ZONE À CAPTURER : reste le plus longtemps dans le cercle (balise lumineuse).
+     * DOUBLE XP pour tout le monde pendant 5 minutes.
+  - PRIMES : de temps en temps une tête est mise à prix (flèche rouge sur la carte) ; le
+    créateur peut aussi mettre une prime de 1000 ou 5000 orbes sur un joueur.
+  - LES 5 CARTES DU MOD (parcours) :
+     * VILLAGE DE JAK 1 (le vrai village de Jak 1, 900 orbes) : course d'exploration de
+       la hutte de Samos jusqu'à la colline aux palmiers.
+     * TOUR CÉLESTE (2000 orbes) : spirale de plateformes précurseurs dans le ciel.
+     * VOLCAN (3000 orbes) : piliers au-dessus de la lave, braises brûlantes, piton.
+     * GLACIER (3000 orbes) : glace glissante, toboggan, vent, glace qui se brise.
+     * PARIS (4000 orbes) : les toits d'un boulevard haussmannien, la Seine, et l'ascension
+       de la TOUR EIFFEL jusqu'au sommet.
+    Plateformes mobiles, qui tournent, qui disparaissent, ascenseurs, tremplins, vent,
+    points de passage (on repart du dernier en cas de chute). Tomber dans le vide, la
+    lave ou la Seine = retour au dernier point de passage (pas de mort).
+  - BOUTIQUE (SELECT) : aussi 5 VIES posées au sol devant toi, une CAISSE DE MUNITIONS
+    au sol, et l'ÉCO BLEU (3 min) : course, sauts et roulades beaucoup plus rapides, tir
+    rapide, véhicule 2,5 fois plus rapide, aimant qui attire orbes, vies et munitions.
+  - PAS DE TRICHE : la page Secrets du menu Start est supprimee ; invincibilite, munitions
+    infinies, Dark/Light Jak illimites, turbo, invisibilite et mode debug sont coupes pour tout
+    le monde. Seul le CREATEUR peut les activer (SELECT > ADMIN), et y regler son niveau
+    (1 a 999) et ses orbes, ou ceux d'un joueur (SELECT > JOUEURS > le joueur).
+  - TELEPORTATION (en haut de SELECT > BOUTIQUE) : 30 orbes vers Haven (Naughty Ottsel, port,
+    bidonville, QG, centre, zone industrielle), 60 orbes vers le desert et Spargus.
+  - AMELIORATIONS (SELECT > BOUTIQUE) : capacite de munitions jaunes / rouges / bleues /
+    noires, turbo JetBoard dans le desert (il faut la JetBoard), vehicules renforces.
+    Ce sont les seuls "secrets" achetables ; tricher (memoire, console, debug) est
+    detecte : la triche est coupee et le tricheur est EXPULSE automatiquement du monde en
+    ligne (a chaque fois qu'il recommence).
+  - PERSONNAGES (SELECT > BOUTIQUE > PERSONNAGES) : joue avec le corps d'un autre
+    personnage, avec TOUS les mouvements de Jak (course, sauts, armes, véhicules...). Toi et
+    les autres joueurs le voyez en temps réel. Jak est gratuit (pour redevenir Jak quand tu
+    veux) ; KEIRA 800 orbes, JAK 2 600, JAK 1 HD 700, JAK 4 1200 (niveau 5), TESS 800.
+    DAXTER 150 orbes : le vrai mode Daxter du jeu (ses propres mouvements et attaques).
+    Daxter n'est sur l'epaule que de Jak (Jak 3). L'achat et ton choix sont sauvegardés.
+  - COLLISIONS ENTRE VÉHICULES : chacun prend sa part du choc comme dans la réalité ; celui
+    qui fonce ralentit, celui qui est percuté part en l'air comme une voiture de civil.
+  - PAS DE BROUILLARD dans le monde en ligne. La CARTE (menu Start) ne met pas le jeu en
+    pause : pendant que tu la regardes, les autres peuvent t'attaquer.
+  - COURSES : SELECT > ÉVÉNEMENTS, tous les joueurs à moins de 80 m participent.
+  - Pas de "secrets" du jeu dans le monde en ligne (invincibilité, munitions infinies...),
+    pas de codes de triche, pas de Dark Jak invincible.
+  - Le monde en ligne n'est JAMAIS sauvegardé dans tes emplacements : ta partie solo
+    n'est pas touchée. Ton profil en ligne (orbes, niveau, achats) est gardé à part,
+    chiffré par Windows : %APPDATA%\Jak3Online\profil.dat
+
+
+ANTI-TRICHE ET PROTECTION
+-------------------------
+  Sans serveur payant, aucun jeu en ligne n'est inviolable à 100 %, mais :
+   - TON ADRESSE IP N'EST JAMAIS DONNÉE AUX AUTRES JOUEURS : en "Internet gratuit" tout
+     passe par le relais ; aucun joueur ne se connecte directement à ton PC.
+   - VERSION OFFICIELLE : chaque jeu calcule une empreinte de TOUT le code du mod. Le
+     créateur publie l'empreinte officielle (signée par sa clé). Un mod modifié pour
+     tricher n'a pas la même empreinte : il est refusé dans le monde public et ignoré
+     par les autres joueurs. Quand une nouvelle version sort, il faut la mettre à jour.
+   - IDENTITÉS SIGNÉES : personne ne peut parler, tirer, éliminer ou modérer "au nom"
+     d'un autre ; chaque élimination est signée par la VICTIME.
+   - VÉRIFICATIONS CROISÉES : chaque jeu surveille les autres (vitesse impossible, points
+     de vie impossibles, tirs de trop loin ou trop rapides, dégâts impossibles sur le
+     boss, expérience impossible). Un joueur pris plusieurs fois devient SUSPECT : ses
+     coups sont ignorés et le créateur est prévenu (il peut le bannir).
+   - Le jeu surveille aussi le tien : mode debug, vie au-dessus du maximum... = plus aucun gain.
+   - Profil chiffré + scellé (un fichier modifié est refusé), gains plafonnés.
+   - Un joueur banni est ignoré par tous les autres jeux et ne peut plus revenir.
+
+
+OPTIONS (fenêtre du programme : double-clic sur l'icône près de l'horloge)
+-------
+  Connexion :
+   - Internet gratuit (automatique)  <- par défaut, rien à régler
+   - Héberger mon propre serveur     (ton PC = serveur, il faut ouvrir le port TCP 27015)
+   - Rejoindre un serveur perso      (adresse IP:port d'un ami qui héberge)
+  Le relais gratuit est public et partagé : très bien pour jouer entre amis ;
+  pour de très grosses parties, un serveur perso est plus stable.
+  Pour arrêter complètement : clic droit sur l'icône > Quitter.
+
+
+EN CAS DE PROBLÈME
+------------------
+  - Le menu dit "MODE EN LIGNE PAS ENCORE ACTIVÉ" : double-clique sur
+    data\online\Jak3Online.exe (il doit rester dans ce dossier).
+  - Antivirus (Avast, AVG...) : s'il bloque Jak3Online.exe, ajoute une exception
+    pour le dossier data\online.
+  - Tout le monde doit avoir la MÊME version du mod.
+  - Tests intégrés : Jak3Online.exe --selftest / --stress / --relaytest / --e2e / --mondetest
+    (bancs à deux jeux : --final, --partout)
+  - Recompiler le programme : src\build.bat
+

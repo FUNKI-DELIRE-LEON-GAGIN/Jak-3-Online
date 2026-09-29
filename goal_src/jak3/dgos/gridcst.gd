@@ -1,0 +1,11 @@
+("GRIDCST.DGO"
+ ("tpage-2967.go"
+  "tpage-2968.go"
+  "daxter-highres-ag.go"
+  "jakc-highres-ag.go"
+  "jinx-highres-ag.go"
+  "krimson-wall-break-ag.go"
+  "blue-gun-mod-three-ag.go"
+  "particleman-ag.go"
+  "gridcst.go"
+ ))

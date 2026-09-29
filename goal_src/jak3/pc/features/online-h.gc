@@ -1,0 +1,508 @@
+;;-*-Lisp-*-
+(in-package goal)
+
+;; name: online-h.gc
+;; dgos: GAME
+;;
+;; JAK 3 EN LIGNE - types partages entre le jeu et le programme Jak3Online.exe.
+;;
+;; Le jeu ne peut pas ouvrir de socket reseau lui-meme. Il echange donc avec le
+;; programme Jak3Online.exe (dossier data/online) par deux fichiers, sans jamais
+;; toucher a la memoire d'un autre programme (les antivirus bloquent ca) :
+;;
+;;   data/online/bridge/game-in.bin   programme -> jeu  (image binaire de online-shm,
+;;                                     + numero de sequence au debut et a #x2600,
+;;                                     puis les poses des 16 joueurs visibles)
+;;   data/online/bridge/game-out.txt  jeu -> programme  (octets 0..#x380 de online-shm
+;;                                     + pose du joueur local, en hexadecimal car le
+;;                                     jeu ecrit en mode texte)
+;;
+;; IMPORTANT : toutes les positions (:offset) sont fixes et DOIVENT rester
+;; identiques a celles de data/online/Jak3Online.cs (classe Shm).
+
+(defconstant ONLINE_MAX_PUPPETS 16)   ;; joueurs distants dessines en meme temps
+(defconstant ONLINE_MAX_SESSIONS 16)  ;; sessions publiques listees
+(defconstant ONLINE_MAX_PLAYERS 100)  ;; joueurs max par session
+(defconstant ONLINE_EVENT_COUNT 16)   ;; taille des files d'evenements
+(defconstant ONLINE_FEED_COUNT 8)     ;; messages (rejoint / quitte / elimine)
+
+;; requetes du jeu vers Jak3Online.exe
+(defconstant ONLINE_REQ_CREATE 1)     ;; arg = max-joueurs | pvp<<8 | public<<9
+(defconstant ONLINE_REQ_JOIN_ID 2)    ;; arg = id de session
+(defconstant ONLINE_REQ_JOIN_CODE 3)  ;; req-code = code a 6 caracteres
+(defconstant ONLINE_REQ_LEAVE 4)
+(defconstant ONLINE_REQ_LIST 5)
+(defconstant ONLINE_REQ_SETTINGS 6)   ;; arg = pvp | public<<1
+(defconstant ONLINE_REQ_NAME 7)       ;; req-name = nouveau pseudo
+(defconstant ONLINE_REQ_GETSAVE 8)    ;; arg = emplacement (0-3) : recuperer la sauvegarde de l'hote
+(defconstant ONLINE_REQ_SAVESYNC 9)   ;; arg = 0/1 : synchro auto de la sauvegarde de l'hote
+(defconstant ONLINE_REQ_ADDBOT 10)    ;; ajouter un joueur test (bot) pour essayer seul
+(defconstant ONLINE_REQ_JOIN_WORLD 11) ;; rejoindre LA session publique (tout le monde ensemble)
+
+;; net-state ecrit par Jak3Online.exe
+(defconstant ONLINE_NET_OFFLINE 0)
+(defconstant ONLINE_NET_CONNECTING 1)
+(defconstant ONLINE_NET_LOBBY 2)
+(defconstant ONLINE_NET_SESSION 3)
+
+;; evenements
+(defconstant ONLINE_EVENT_HIT 1)      ;; coup porte / recu
+(defconstant ONLINE_EVENT_DIED 2)     ;; je suis mort (player-id = tueur, 0 = aucun)
+(defconstant ONLINE_EVENT_KILL 3)     ;; recu : j'ai elimine player-id
+
+;; flags de l'etat joueur
+(defconstant ONLINE_FLAG_VALID     #x1)
+(defconstant ONLINE_FLAG_DEAD      #x2)
+(defconstant ONLINE_FLAG_HIDDEN    #x4)
+(defconstant ONLINE_FLAG_GROUND    #x8)
+(defconstant ONLINE_FLAG_DARK      #x10)
+(defconstant ONLINE_FLAG_LIGHT     #x20)
+(defconstant ONLINE_FLAG_GUN       #x40)
+(defconstant ONLINE_FLAG_VEHICLE   #x80)
+(defconstant ONLINE_FLAG_BOARD     #x100)
+(defconstant ONLINE_FLAG_PAUSED    #x200)
+
+;; flags de la liste des joueurs
+(defconstant ONLINE_PFLAG_HOST #x1)
+(defconstant ONLINE_PFLAG_ME   #x2)
+(defconstant ONLINE_PFLAG_DEAD #x4)
+
+;; flags des sessions
+(defconstant ONLINE_SFLAG_PUBLIC #x1)
+(defconstant ONLINE_SFLAG_PVP    #x2)
+
+(deftype online-local-state (structure)
+  "Etat du joueur local, ecrit par le jeu a chaque image."
+  ((seq         uint32              :offset 0)
+   (flags       uint32              :offset 4)
+   (anim-idx    int32               :offset 8)
+   (anim-frame  float               :offset 12)
+   (pos         vector     :inline  :offset 16) ;; w = sante
+   (quat        quaternion :inline  :offset 32)
+   (vel         vector     :inline  :offset 48)
+   (level       uint8      16       :offset 64)
+   (kills       uint32              :offset 80)
+   (deaths      uint32              :offset 84)
+   (pad         uint8      40       :offset 88)
+   )
+  :size-assert #x80
+  )
+
+(deftype online-remote-state (structure)
+  "Etat d'un joueur distant, ecrit par Jak3Online.exe."
+  ((active      uint32              :offset 0)
+   (player-id   uint32              :offset 4)
+   (seq         uint32              :offset 8)
+   (flags       uint32              :offset 12)
+   (pos         vector     :inline  :offset 16) ;; w = sante
+   (quat        quaternion :inline  :offset 32)
+   (vel         vector     :inline  :offset 48)
+   (anim-idx    int32               :offset 64)
+   (anim-frame  float               :offset 68)
+   (kills       uint32              :offset 72)
+   (deaths      uint32              :offset 76)
+   (name        uint8      16       :offset 80)
+   (level       uint8      16       :offset 96)
+   (pad         uint8      16       :offset 112)
+   )
+  :size-assert #x80
+  )
+
+(deftype online-event (structure)
+  ((kind        uint32              :offset 0)
+   (player-id   uint32              :offset 4)
+   (damage      float               :offset 8)
+   (mode        uint32              :offset 12)
+   (dir         vector     :inline  :offset 16)
+   )
+  :size-assert #x20
+  )
+
+(deftype online-session-entry (structure)
+  ((session-id  uint32              :offset 0)
+   (players     uint32              :offset 4)
+   (max-players uint32              :offset 8)
+   (flags       uint32              :offset 12)
+   (host-name   uint8      16       :offset 16)
+   (code        uint8      16       :offset 32)
+   )
+  :size-assert #x30
+  )
+
+(deftype online-player-entry (structure)
+  ((player-id   uint32              :offset 0)
+   (flags       uint32              :offset 4)
+   (ping        uint32              :offset 8)
+   (health      float               :offset 12)
+   (name        uint8      16       :offset 16)
+   (level       uint8      16       :offset 32)
+   )
+  :size-assert #x30
+  )
+
+(deftype online-feed-entry (structure)
+  ((text        uint8      64       :offset 0)
+   )
+  :size-assert #x40
+  )
+
+(deftype online-shm (structure)
+  "Bloc memoire partage avec Jak3Online.exe. Taille et offsets figes."
+  ((magic           uint32 4                               :offset 0)
+   (version         uint32                                 :offset 16)
+   (self-addr       uint32                                 :offset 20)
+   (game-frame      uint32                                 :offset 24) ;; jeu
+   (bridge-beat     uint32                                 :offset 28) ;; programme
+   (net-state       uint32                                 :offset 32) ;; programme
+   (my-id           uint32                                 :offset 36) ;; programme
+   (is-host         uint32                                 :offset 40) ;; programme
+   (session-public  uint32                                 :offset 44) ;; programme
+   (session-code    uint8  8                               :offset 48) ;; programme
+   (session-players uint32                                 :offset 56) ;; programme
+   (session-max     uint32                                 :offset 60) ;; programme
+   (pvp-enabled     uint32                                 :offset 64) ;; programme
+   (req-seq         uint32                                 :offset 68) ;; jeu
+   (req-type        uint32                                 :offset 72) ;; jeu
+   (req-arg         uint32                                 :offset 76) ;; jeu
+   (req-code        uint8  8                               :offset 80) ;; jeu
+   (ack-seq         uint32                                 :offset 88) ;; programme
+   (list-count      uint32                                 :offset 92) ;; programme
+   (status-msg      uint8  64                              :offset 96) ;; programme
+   (my-name         uint8  16                              :offset 160) ;; programme
+   (list-seq        uint32                                 :offset 176) ;; programme
+   (player-count    uint32                                 :offset 180) ;; programme
+   (session-id      uint32                                 :offset 184) ;; programme
+   (feed-write      uint32                                 :offset 188) ;; programme
+   (out-write       uint32                                 :offset 192) ;; jeu
+   (out-read        uint32                                 :offset 196) ;; programme
+   (in-write        uint32                                 :offset 200) ;; programme
+   (in-read         uint32                                 :offset 204) ;; jeu
+   (server-ok       uint32                                 :offset 208) ;; programme
+   (kb-edit         uint32                                 :offset 212) ;; jeu : saisie clavier (1 pseudo, 2 chat, 3 annonce)
+   (ui-mode         uint32                                 :offset 216) ;; jeu : 1 menu TAB, 2 boutique
+   (ui-flags        uint32                                 :offset 220) ;; jeu : 1 en jeu, 2 monde en ligne charge, 4 triche
+   (req-name        uint8  16                              :offset 224) ;; jeu (nouveau pseudo)
+   (local           online-local-state   :inline           :offset 256)
+   (out-events      online-event         16 :inline        :offset 384)
+   (in-events       online-event         16 :inline        :offset 896)
+   (kb-text         uint8  16                              :offset 1408) ;; programme : texte tape au clavier
+   (kb-seq          uint32                                 :offset 1424) ;; programme
+   (kb-cmd          uint32                                 :offset 1428) ;; programme : 1 valider, 2 annuler
+   (save-sync       uint32                                 :offset 1432) ;; programme : synchro auto active
+   (save-status     uint32                                 :offset 1436) ;; programme : 0 rien, 1 en cours, 2 recue, 3 erreur
+   (save-slot       uint32                                 :offset 1440) ;; programme : emplacement recu (0-3)
+   (test-seq        uint32                                 :offset 1444) ;; programme : commande de test (banc de test)
+   (test-arg        uint32                                 :offset 1448) ;; programme
+   (remote          online-remote-state  16 :inline        :offset 1536)
+   (sessions        online-session-entry 16 :inline        :offset 3584)
+   (players         online-player-entry  100 :inline       :offset 4352)
+   (feed            online-feed-entry    8 :inline         :offset 9216)
+   )
+  :size-assert #x2600
+  )
+
+;; modes de coup transmis sur le reseau
+(defconstant ONLINE_MODE_GENERIC 0)
+(defconstant ONLINE_MODE_DARK 1)
+(defconstant ONLINE_MODE_BLUE 2)
+(defconstant ONLINE_MODE_RED 3)
+(defconstant ONLINE_MODE_YELLOW 4)
+(defconstant ONLINE_MODE_EXPLODE 5)
+(defconstant ONLINE_MODE_LIFT 6)
+(defconstant ONLINE_MODE_IMPACT 7)
+
+;; POSES : squelette complet de chaque joueur (Jak, Daxter, arme, planche, ailes).
+;; Chaque os est envoye relatif au joueur : rotation (32 bits), position (3 x 16 bits)
+;; et echelle (3 x 16 bits). L'avatar reproduit donc exactement ce que l'autre joueur
+;; affiche, meme les animations que ce jeu-ci n'a pas chargees (planche, dark/light jak...).
+;;
+;; pose :  u8 version (1), u8 nombre de pieces, u16 longueur,
+;;         f32 x y z (position du joueur), f32 qx qy qz qw (orientation)      = 32 octets
+;; piece : u8 sorte, u8 nombre d'os, u8 drapeaux (1 = fondu force), u8 effets globaux,
+;;         u8 fondu, u8 tenue de Jak (ext-geo), u16 -, u32 segments visibles,
+;;         u8 x4 couleur (x64), u8 x4 emission (x64)                        = 20 octets
+;; os :    u32 rotation, s16 x3 position, u16 x3 echelle (x4096)           = 16 octets
+(defconstant ONLINE_POSE_MAX 3072)          ;; octets max d'une pose
+(defconstant ONLINE_POSE_SLOT 3104)         ;; bloc d'un joueur dans game-in.bin
+(defconstant ONLINE_POSE_TAIL 3088)         ;; sequence de fin dans ce bloc
+(defconstant ONLINE_POSE_RX_OFS #x2610)     ;; debut des poses dans game-in.bin
+(defconstant ONLINE_POSE_HDR 32)
+(defconstant ONLINE_PART_HDR 20)
+(defconstant ONLINE_BONE_SIZE 16)
+(defconstant ONLINE_PART_JAK 0)
+(defconstant ONLINE_PART_DAXTER 1)
+(defconstant ONLINE_PART_GUN 2)
+(defconstant ONLINE_PART_BOARD 3)
+(defconstant ONLINE_PART_WINGS 4)
+(defconstant ONLINE_PART_KINDS 5)
+;; vehicules (et autres objets pilotes) : une piece "nom" (sorte 6, 1 os = 16 caracteres,
+;; le nom du squelette du jeu, ex. skel-v-toad) suivie de la piece objet (sorte 5)
+(defconstant ONLINE_PART_OBJECT 5)
+(defconstant ONLINE_PART_NAME 6)
+(defconstant ONLINE_MAX_OBJECTS 6)
+(defconstant ONLINE_PART_SLOTS 11)          ;; 5 pieces fixes + 6 objets
+
+(defconstant ONLINE_SHM_SIZE #x2600)
+(defconstant ONLINE_RX_MIN #x2610)          ;; image + sequence de fin (offset #x2600)
+(defconstant ONLINE_EXT_OFS #xe810)         ;; ... + 16 poses de 3104 octets
+(defconstant ONLINE_EXT_SIZE #x2000)        ;; ... + zone EXT (monde en ligne, chat, menu)
+(defconstant ONLINE_EXT_TAIL #x1ffc)
+(defconstant ONLINE_RX_SIZE #x10810)
+(defconstant ONLINE_TX_BYTES #x380)         ;; partie de online-shm ecrite par le jeu
+(defconstant ONLINE_TX_POSE_BYTES 3076)     ;; u32 longueur + pose du joueur local
+(defconstant ONLINE_TX_CHARS 7960)          ;; 8 (seq) + 2*(#x380+3076) + 8 (seq)
+
+(deftype online-rx (structure)
+  "copie brute de game-in.bin"
+  ((data uint8 #x10810 :offset 0)
+   )
+  :size-assert #x10810
+  )
+
+(deftype online-pose-tx (structure)
+  "pose du joueur local, envoyee a Jak3Online.exe"
+  ((len  uint32      :offset 0)
+   (data uint8 3072  :offset 4)
+   )
+  :size-assert #xc04
+  )
+
+(deftype online-pose-slot (structure)
+  "pose d'un joueur distant : la derniere recue et la precedente (interpolation)"
+  ((seq       uint32      :offset 0)
+   (player    uint32      :offset 4)
+   (cur-len   int32       :offset 8)
+   (prev-len  int32       :offset 12)
+   (t-cur     time-frame  :offset 16)
+   (t-prev    time-frame  :offset 24)
+   (interval  float       :offset 32)
+   (cur       uint8 3072  :offset 48)
+   (prev      uint8 3072  :offset 3120)
+   )
+  :size-assert 6192
+  )
+
+(deftype online-pose-bank (structure)
+  ((slot online-pose-slot 16 :inline :offset 0)
+   )
+  :size-assert #x18300
+  )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; MONDE EN LIGNE (zone EXT de game-in.bin, ecrite par Jak3Online.exe)
+;; offsets identiques a la classe Ext de data/online/src/Jak3OnlineMonde.cs
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftype online-ext-player (structure)
+  "niveau, position et drapeaux d'un joueur (meme ordre que la liste de online-shm)"
+  ((id       uint32  :offset 0)
+   (x        float   :offset 4)
+   (y        float   :offset 8)
+   (z        float   :offset 12)
+   (level    uint16  :offset 16)
+   (flags    uint16  :offset 18)
+   (has-pos  uint32  :offset 20)
+   (flags2   uint8   :offset 24)   ;; 1 fantome (cache sur les cartes), 2 version modifiee / suspect
+   (pad      uint8 7 :offset 25)
+   )
+  :size-assert 32
+  )
+
+(deftype online-chat-line (structure)
+  ((color  uint32    :offset 0)
+   (name   uint8 16  :offset 4)
+   (text   uint8 88  :offset 20)
+   (pad    uint32    :offset 108)
+   )
+  :size-assert 112
+  )
+
+(deftype online-ext (structure)
+  ((seq           uint32                        :offset 0)
+   (flags         uint32                        :offset 4)
+   (key-write     uint32                        :offset 8)
+   (chat-mode     uint32                        :offset 12)
+   (keys          uint8 16                      :offset 16)
+   (chat-input    uint8 96                      :offset 32)
+   (money         uint32                        :offset 128)
+   (xp            uint32                        :offset 132)
+   (level         uint32                        :offset 136)
+   (xp-base       uint32                        :offset 140)
+   (xp-next       uint32                        :offset 144)
+   (kills         uint32                        :offset 148)
+   (features      uint64                        :offset 152)
+   (secrets       uint64                        :offset 160)
+   (vehicles      uint32                        :offset 168)
+   (items         uint32                        :offset 172)
+   (cmd-text      uint8 32                      :offset 208)
+   (ann-seq       uint32                        :offset 240)
+   (ann-kind      uint32                        :offset 244)
+   (ann-text      uint8 88                      :offset 248)
+   (time-seq      uint32                        :offset 336)
+   (time-hour     float                         :offset 340)
+   (bounty-id     uint32                        :offset 344)
+   (bounty-amount uint32                        :offset 348)
+   (race-seq      uint32                        :offset 352)
+   (race-state    uint32                        :offset 356)
+   (race-timer    float                         :offset 360)
+   (race-pot      uint32                        :offset 364)
+   (race-dest     vector            :inline     :offset 368)
+   (race-rank     uint32                        :offset 384)
+   (race-count    uint32                        :offset 388)
+   (race-name     uint8 24                      :offset 392)
+   (prices        uint32 64                     :offset 416)
+   (chat-write    uint32                        :offset 672)
+   (chat          online-chat-line 10 :inline   :offset 688)
+   (players       online-ext-player 100 :inline :offset 1808)
+   (player-count  uint32                        :offset 5008)
+   (reward-seq    uint32                        :offset 5024)
+   (reward-money  int32                         :offset 5028)
+   (reward-xp     int32                         :offset 5032)
+   (reward-text   uint8 48                      :offset 5036)
+   (deaths        uint32                        :offset 5084)
+   (prices-hi     uint32 32                     :offset 5088) ;; prix des objets 64..95
+   (req-level     uint8 96                      :offset 5216) ;; niveau requis de chaque objet
+   (power-left    float 8                       :offset 5312) ;; super-pouvoirs : secondes restantes
+   (ev-seq        uint32                        :offset 5344) ;; evenement du monde
+   (ev-kind       uint32                        :offset 5348) ;; 1 boss, 2 pluie d'orbes, 3 tresor, 4 double XP, 5 zone
+   (ev-state      uint32                        :offset 5352) ;; 1 en cours, 2 reussi, 3 rate
+   (ev-timer      float                         :offset 5356)
+   (ev-pos        vector            :inline     :offset 5360)
+   (ev-hp         float                         :offset 5376) ;; points de vie du boss (0..1)
+   (ev-my-dmg     float                         :offset 5380)
+   (ev-count      uint32                        :offset 5384)
+   (ev-id         uint32                        :offset 5388)
+   (ev-name       uint8 32                      :offset 5392)
+   (ev-level      uint8 16                      :offset 5424)
+   (ev-radius     float                         :offset 5440)
+   (ev-boss       uint32                        :offset 5444)
+   (ev-score      float                         :offset 5448)
+   (ev-top        uint8 64                      :offset 5452)
+   (streak        uint32                        :offset 5516)
+   (warn-seq      uint32                        :offset 5520) ;; anti-triche : avertissement
+   (warn-text     uint8 64                      :offset 5524)
+   (xp-mul        uint32                        :offset 5588)
+   (boss-seq      uint32                        :offset 5600) ;; boss synchronise : nouvelle position recue
+   (boss-driver   uint32                        :offset 5604) ;; 1 = c'est MON jeu qui pilote le boss
+   (boss-anim     uint32                        :offset 5608) ;; action du boss chez le pilote
+   (boss-pos      vector            :inline     :offset 5616) ;; position du boss chez le pilote (w = cap)
+   (ev-target     uint32                        :offset 5632) ;; chasse a l'homme : joueur a abattre
+   (ev-dur        float                         :offset 5636) ;; duree totale de l'evenement (s)
+   (map-flags     uint32                        :offset 5640) ;; 1 = je suis le createur de la chasse
+   (perso         uint32                        :offset 5644) ;; personnage choisi (0 = Jak), sauve dans le profil
+   (tail          uint32                        :offset 8188)
+   )
+  :size-assert #x2000
+  )
+
+;; drapeaux de la zone EXT
+(defconstant ONLINE_XF_WORLD    #x1)   ;; session publique = monde en ligne
+(defconstant ONLINE_XF_MOD      #x2)   ;; je peux moderer (hote d'une session privee, ou createur)
+(defconstant ONLINE_XF_CREATEUR #x4)   ;; je suis le createur du mod (cle verifiee)
+(defconstant ONLINE_XF_MUTED    #x8)
+(defconstant ONLINE_XF_FROZEN   #x10)
+(defconstant ONLINE_XF_PROFILE  #x20)  ;; profil charge
+(defconstant ONLINE_XF_PVP_OFF  #x40)  ;; PvP coupe par le createur (monde)
+(defconstant ONLINE_XF_HOST     #x80)
+
+;; drapeaux des joueurs (EXT)
+(defconstant ONLINE_PX_CREATEUR #x1)
+(defconstant ONLINE_PX_HOST     #x2)
+(defconstant ONLINE_PX_MUTED    #x4)
+(defconstant ONLINE_PX_BOUNTY   #x8)
+(defconstant ONLINE_PX_SUSPECT  #x20)
+(defconstant ONLINE_PX_FROZEN   #x40)
+(defconstant ONLINE_PX_BANNED   #x80)
+(defconstant ONLINE_PX_ME       #x100)
+(defconstant ONLINE_PX_VERIFIED #x200)
+(defconstant ONLINE_PX_DEAD     #x400)
+
+;; evenements jeu -> programme (en plus de HIT / DIED)
+(defconstant ONLINE_EVENT_ORBS 10)    ;; mode = orbes ramassees
+(defconstant ONLINE_EVENT_ENEMY 11)   ;; mode = ennemis elimines
+(defconstant ONLINE_EVENT_TASK 12)    ;; mode = mission reussie
+(defconstant ONLINE_EVENT_BUY 13)     ;; mode = objet de la boutique
+(defconstant ONLINE_EVENT_ADMIN 14)   ;; player-id = cible, mode = commande, damage = argument, dir = position
+(defconstant ONLINE_EVENT_RACE 15)    ;; mode = destination, dir = position de l'arrivee
+(defconstant ONLINE_EVENT_CHEAT 16)   ;; mode = raison (1 debug, 2 vie, 3 munitions, 4 codes)
+(defconstant ONLINE_EVENT_BOSS_DMG 17) ;; mode = degats x10 infliges au boss
+(defconstant ONLINE_EVENT_EVENT 18)   ;; mode = 1 tresor ouvert, 3 une seconde dans la zone
+(defconstant ONLINE_EVENT_VEH_DEAD 19) ;; mon vehicule est detruit (player-id = dernier tireur)
+;; evenements programme -> jeu
+(defconstant ONLINE_EVENT_CMD 20)     ;; commande de moderation pour moi (mode = commande)
+(defconstant ONLINE_EVENT_GRANT 21)   ;; achat d'un consommable (mode = sorte)
+(defconstant ONLINE_EVENT_BOSS_POS 22) ;; jeu -> programme : position du boss que je pilote (dir, w = cap ; mode = action)
+(defconstant ONLINE_EVENT_PERSO 23)   ;; jeu -> programme : je choisis ce personnage (mode = numero, 0 = Jak)
+
+;; commandes de moderation (memes numeros que Jak3OnlineMonde.cs)
+(defconstant ONLINE_CMD_KICK 1)
+(defconstant ONLINE_CMD_BAN 2)
+(defconstant ONLINE_CMD_UNBAN 3)
+(defconstant ONLINE_CMD_MUTE 4)
+(defconstant ONLINE_CMD_UNMUTE 5)
+(defconstant ONLINE_CMD_FREEZE 6)
+(defconstant ONLINE_CMD_UNFREEZE 7)
+(defconstant ONLINE_CMD_BRING 8)
+(defconstant ONLINE_CMD_KILL 10)
+(defconstant ONLINE_CMD_HEAL 11)
+(defconstant ONLINE_CMD_GIVE 12)
+(defconstant ONLINE_CMD_TIME 13)
+(defconstant ONLINE_CMD_ANNOUNCE 14)
+(defconstant ONLINE_CMD_PVP 15)
+(defconstant ONLINE_CMD_HEAL_ALL 16)
+(defconstant ONLINE_CMD_BRING_ALL 17)
+(defconstant ONLINE_CMD_SLAP 18)
+(defconstant ONLINE_CMD_FREEZE_ALL 21)
+(defconstant ONLINE_CMD_UNFREEZE_ALL 22)
+(defconstant ONLINE_CMD_EVENT 23)
+(defconstant ONLINE_CMD_GIVE_VEHICLES 24)
+(defconstant ONLINE_CMD_PUBLISH_VERSION 25)
+(defconstant ONLINE_CMD_BOUNTY 26)         ;; prime du createur sur un joueur (argument = orbes)
+(defconstant ONLINE_CMD_SET_LEVEL 28)       ;; createur : niveau d'un joueur (0 = moi) (argument = niveau)
+(defconstant ONLINE_CMD_SET_MONEY 29)       ;; createur : orbes d'un joueur (0 = moi) (argument = orbes)
+(defconstant ONLINE_CMD_RESET_ACTORS 27)   ;; tout le monde : les acteurs des niveaux charges renaissent
+(defconstant ONLINE_CMD_IGNORE 30)
+
+;; evenements du monde
+(defconstant ONLINE_EVK_BOSS 1)
+(defconstant ONLINE_EVK_ORBS 2)
+(defconstant ONLINE_EVK_TREASURE 3)
+(defconstant ONLINE_EVK_DOUBLEXP 4)
+(defconstant ONLINE_EVK_ZONE 5)
+(defconstant ONLINE_EVK_HUNT 6)      ;; chasse a l'homme : le premier qui elimine la cible gagne
+(defconstant ONLINE_EVK_PARKOUR 7)   ;; parcours sur une carte : le premier arrive en haut gagne
+(defconstant ONLINE_EVK_METEOR 8)    ;; pluie de meteores : rester dans la zone sans mourir
+
+;; cartes du mod (parcours), memes numeros que Maps dans Jak3OnlineEvents.cs
+(defconstant OW_MAP_COUNT 5)
+
+;; boss (ev-boss)
+(defconstant ONLINE_BOSS_DARKJAK 0)
+(defconstant ONLINE_BOSS_OMBRE 1)
+(defconstant ONLINE_BOSS_DECHU 2)
+(defconstant ONLINE_BOSS_ROBOT 3)    ;; robot precurseur geant (zone-boss)
+(defconstant ONLINE_BOSS_TITAN 4)    ;; titan Dark Maker (dm-robot)
+(defconstant ONLINE_BOSS_BETE 5)     ;; bete du desert (des-beast)
+
+;; super-pouvoirs (index de power-left)
+(defconstant ONLINE_POW_TURBO 0)
+(defconstant ONLINE_POW_JUMP 1)
+(defconstant ONLINE_POW_STEEL 2)
+(defconstant ONLINE_POW_GHOST 3)
+(defconstant ONLINE_POW_RADAR 4)
+(defconstant ONLINE_POW_DOUBLEXP 5)
+(defconstant ONLINE_POW_MAGNET 6)
+(defconstant ONLINE_POW_REGEN 7)
+
+;; touches envoyees par Jak3Online.exe (clavier, fenetre du jeu au premier plan)
+(defconstant ONLINE_KEY_UP 1)
+(defconstant ONLINE_KEY_DOWN 2)
+(defconstant ONLINE_KEY_LEFT 3)
+(defconstant ONLINE_KEY_RIGHT 4)
+(defconstant ONLINE_KEY_ENTER 5)
+(defconstant ONLINE_KEY_ESC 6)
+(defconstant ONLINE_KEY_TAB 7)
+(defconstant ONLINE_KEY_PGUP 8)
+(defconstant ONLINE_KEY_PGDN 9)
+(defconstant ONLINE_KEY_T 10)
+(defconstant ONLINE_MODE_VEHICLE 8)   ;; tir sur un vehicule (degats pour le vehicule)

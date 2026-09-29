@@ -1,0 +1,11 @@
+("LFACCAR.DGO"
+ ("was-squad-control.o"
+  "wcar-marauder.o"
+  "w-parking-spot.o"
+  "lfaccar-init.o"
+  "wcar-faccar.o"
+  "tpage-2573.go"
+  "tpage-2867.go"
+  "faccar-ag.go"
+  "lfaccar.go"
+ ))

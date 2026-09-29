@@ -1,0 +1,15 @@
+// JAK 3 EN LIGNE : carte "Volcan" (fabriquee par build_maps.py)
+{
+  "long_name": "ow-volcan",
+  "iso_name": "OWVOLCAN",
+  "nickname": "ovl",
+  "gltf_file": "custom_assets/jak3/levels/ow-volcan/ow-volcan.glb",
+  "automatic_wall_detection": true,
+  "automatic_wall_angle": 45.0,
+  "double_sided_collide": false,
+  "base_id": 800,
+  "custom_models": [
+    "ow-plat"
+  ],
+  "actors": []
+}
