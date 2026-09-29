@@ -10,4 +10,6 @@ personnages jouables (Keira, Jak 2, Jak 1 HD, Jak 4, Tess, Daxter), anti-triche,
 
 Il faut ta propre copie de Jak 3 (PS2) : aucun fichier du jeu n'est dans ce dépôt.
 
+![Jak 3 Online](MINIATURE-JAK3-ONLINE.png)
+
 Créé par FUNKI DELIRE (LEON GAGIN).
