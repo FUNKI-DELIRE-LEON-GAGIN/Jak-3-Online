@@ -9,6 +9,7 @@
 (define-extern anim-tester-add-object (function string none))
 ;; jak 3 en ligne (pc/features/online.gc)
 (define-extern online-update (function none))
+(define-extern online-camera-early! (function none))
 
 ;; DECOMP BEGINS
 
@@ -126,7 +127,7 @@
   ;; jak 3 en ligne : en session, le menu Start ne met pas le jeu en pause
   (or (= *master-mode* 'pause)
       (and (= *master-mode* 'progress) (not *online-live-menu*))
-      (= *master-mode* 'menu)
+      (and (= *master-mode* 'menu) (not *online-no-pause*))
       (= *master-mode* 'freeze)
       )
   )
@@ -174,9 +175,14 @@
        (set! (-> *game-info* pause-start-time) (-> *display* real-clock frame-counter))
        )
       (('menu)
-       (logior! (-> *setting-control* user-default process-mask) (process-mask menu))
+       ;; jak 3 en ligne : en session, le menu debug (createur) ne met pas le jeu en pause
+       (if (not *online-no-pause*)
+           (logior! (-> *setting-control* user-default process-mask) (process-mask menu))
+           )
        (logclear! (-> *setting-control* user-default process-mask) (process-mask freeze pause progress))
-       (sound-group-pause (the-as sound-group #xffffffff))
+       (if (not *online-no-pause*)
+           (sound-group-pause (the-as sound-group #xffffffff))
+           )
        (set! *pause-lock* #f)
        )
       (('progress)
@@ -1451,6 +1457,8 @@
     (if (-> *level* loading-level)
         (load-continue (-> *level* loading-level))
         )
+    ;; jak 3 en ligne : camera "Jak 4" (vive, champ de vision large), en debut d'image comme le mod Jak 4
+    (online-camera-early!)
 
     ; ;; modify vertices for merc face animation. I believe this is somewhat racing DMA of merc data to VU1.
     (with-profiler 'merc *profile-merc-color*

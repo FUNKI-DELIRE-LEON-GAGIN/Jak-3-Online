@@ -2185,6 +2185,9 @@
 
 ;; WARN: Return type mismatch object vs (pointer process).
 (defbehavior target-gun-fire-blue target ((arg0 pickup-type))
+  (if *ow-shot-hook*
+      (*ow-shot-hook* (the-as int arg0))
+      )
   ;; jak 3 en ligne : tirs contre les joueurs distants
   (online-pvp-gun-fire! self arg0)
   (the-as (pointer process) (case arg0

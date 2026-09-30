@@ -3,8 +3,7 @@
   "ffight-projectile.o"
   "ftank-projectile.o"
   "fturret-projectile.o"
-  "warf-projectile.o"
-  "h-warf.o"
+  ;; warf-projectile.o et h-warf.o sont dans GAME (jak 3 en ligne : Hellcat partout)
   "fac-gunturret.o"
   "fac-robotank-h.o"
   "fac-robotank-turret.o"

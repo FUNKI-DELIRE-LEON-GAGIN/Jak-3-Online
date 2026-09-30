@@ -553,9 +553,12 @@
   "wcar-x-ride.o"
   "bike.o"
   "car.o"
+  "warf-projectile.o" ;; jak 3 en ligne : le Hellcat (h-warf) pilotable partout
+  "h-warf.o"
   "jak-pilot+0-ag.go"
   "jak-pilot-wcar+0-ag.go"
   "jak-pilot-hcar+0-ag.go"
+  "hellcat-ag.go" ;; jak 3 en ligne : squelette du Hellcat (maillage dans ctycarc.fr3)
   "jak-pilot-gun+0-ag.go"
   "vehicle-explosion-ag.go"
   "turtle-ag.go"
@@ -581,6 +584,27 @@
   "ow-jak1-ag.go"
   "ow-jak4-ag.go"
   "ow-tess-ag.go"
+  "ow-ashelin-ag.go" ;; 1.3 : Ashelin, Torn, Sig, Samos (maillages dans owcom.fr3)
+  "ow-torn-ag.go"
+  "ow-sig-ag.go"
+  "ow-samos-ag.go"
+  "ow-requin-ag.go" ;; requin lurker (maillage dans owcom.fr3)
+  ;; 1.3 : ACCESSOIRES (maillages dans owcom.fr3)
+  "ow-acc0-ag.go"
+  "ow-acc1-ag.go"
+  "ow-acc2-ag.go"
+  "ow-acc3-ag.go"
+  "ow-acc4-ag.go"
+  "ow-acc5-ag.go"
+  "ow-acc6-ag.go"
+  "ow-acc7-ag.go"
+  "ow-acc8-ag.go"
+  "ow-acc9-ag.go"
+  "ow-acc10-ag.go"
+  "ow-acc11-ag.go"
+  "ow-acc12-ag.go"
+  "ow-acc13-ag.go"
+  "ow-corps-ag.go" ;; corps invisible des autres joueurs (collision seulement)
   "target-indax.o" ;; JAK 3 EN LIGNE : mode Daxter (indax) partout, pas seulement dans ses niveaux
   "target-indax-hang.o"
   "online-h.o" ;; added (jak 3 en ligne)

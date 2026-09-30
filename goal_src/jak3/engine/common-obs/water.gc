@@ -240,6 +240,24 @@
         (vector-copy! (-> this normal) (-> s5-0 normal))
         (set! (-> this base-ocean-offset) (- (-> s5-0 trans y) (-> s5-0 base-height)))
         )
+      ;; jak 3 en ligne : la MER des cartes du mod (village de Jak 1). Un niveau custom n'a pas de
+      ;; regions d'eau (c'est d'elles que le jeu tire la nage) : la carte declare sa mer, on y nage
+      ;; comme dans Jak 1 (meme recette que le mod "Jak 4" de l'utilisateur).
+      (when (and (< -100000000.0 *online-sea-y*) (logtest? (water-flag find-water) (-> this flags)))
+        (let ((p (-> this process control trans)))
+          (when (and (< *online-sea-x0* (-> p x)) (< (-> p x) *online-sea-x1*)
+                     (< *online-sea-z0* (-> p z)) (< (-> p z) *online-sea-z1*)
+                     (< (-> p y) (+ *online-sea-y* 16384.0))
+                     )
+            (logior! (-> this flags) (water-flag active can-swim can-wade can-ground over-water))
+            ;; (le contact avec l'eau se lit dans l'info d'eau trouvee : on la marque aussi)
+            (logior! (-> s5-0 flags) (water-flag touch-water))
+            (set! (-> this base-height) *online-sea-y*)
+            (set-vector! (-> this normal) 0.0 1.0 0.0 1.0)
+            (set! (-> this base-ocean-offset) 0.0)
+            )
+          )
+        )
       (cond
         ((or (not (logtest? (-> this flags) (water-flag active)))
              (logtest? (focus-status teleporting) (-> this process focus-status))

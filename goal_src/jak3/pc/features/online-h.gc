@@ -37,6 +37,7 @@
 (defconstant ONLINE_REQ_GETSAVE 8)    ;; arg = emplacement (0-3) : recuperer la sauvegarde de l'hote
 (defconstant ONLINE_REQ_SAVESYNC 9)   ;; arg = 0/1 : synchro auto de la sauvegarde de l'hote
 (defconstant ONLINE_REQ_ADDBOT 10)    ;; ajouter un joueur test (bot) pour essayer seul
+(defconstant ONLINE_REQ_LOCALJ2 12)   ;; joueur 2 local (2e fenetre, 2e manette) : 0 arreter, 1 lancer, 2 basculer
 (defconstant ONLINE_REQ_JOIN_WORLD 11) ;; rejoindre LA session publique (tout le monde ensemble)
 
 ;; net-state ecrit par Jak3Online.exe
@@ -61,6 +62,8 @@
 (defconstant ONLINE_FLAG_VEHICLE   #x80)
 (defconstant ONLINE_FLAG_BOARD     #x100)
 (defconstant ONLINE_FLAG_PAUSED    #x200)
+(defconstant ONLINE_FLAG_PASSENGER #x400) ;; passager dans le vehicule d'un autre joueur
+(defconstant ONLINE_FLAG_BIKE      #x800) ;; conducteur d'une moto (le passager s'assoit derriere)
 
 ;; flags de la liste des joueurs
 (defconstant ONLINE_PFLAG_HOST #x1)
@@ -390,6 +393,13 @@
    (ev-dur        float                         :offset 5636) ;; duree totale de l'evenement (s)
    (map-flags     uint32                        :offset 5640) ;; 1 = je suis le createur de la chasse
    (perso         uint32                        :offset 5644) ;; personnage choisi (0 = Jak), sauve dans le profil
+   (prices-x      uint32 32                     :offset 5648) ;; prix des objets 96..127
+   (req-level-x   uint8 32                      :offset 5776) ;; niveau requis des objets 96..127
+   (day-lock      uint32                        :offset 5808) ;; 1 = jour permanent (createur)
+   (local-j2      uint32                        :offset 5812) ;; joueur 2 local : 1 je suis J2, 2 un J2 tourne, 4 cote a cote, bits 8-15 manette+1
+   (weather       uint32                        :offset 5816) ;; meteo du monde : 0 beau temps, 1 pluie, 2 orage, 3 neige
+   (cosm-owned    uint32                        :offset 5820) ;; ACCESSOIRES achetes (bits 0..13 = objets 114..127)
+   (cosm-wear     uint32                        :offset 5824) ;; accessoires portes : octet 0 tete, 1 visage, 2 dos (numero, 0 = rien)
    (tail          uint32                        :offset 8188)
    )
   :size-assert #x2000
@@ -432,7 +442,17 @@
 (defconstant ONLINE_EVENT_CMD 20)     ;; commande de moderation pour moi (mode = commande)
 (defconstant ONLINE_EVENT_GRANT 21)   ;; achat d'un consommable (mode = sorte)
 (defconstant ONLINE_EVENT_BOSS_POS 22) ;; jeu -> programme : position du boss que je pilote (dir, w = cap ; mode = action)
+(defconstant ONLINE_EVENT_COOP 24)    ;; coop en session privee (jeu <-> programme) : mode = sorte
+                                      ;; (1 objet fini, 2 ennemi tue, 3 etape de mission), player-id = aid / etape
+(defconstant ONLINE_EVENT_SHOT 25)    ;; jeu -> programme : je tire (mode = arme, dir = direction) ;
+                                      ;; programme -> jeu : un autre joueur tire (player-id = tireur)
+(defconstant ONLINE_EVENT_HOUSE 26)   ;; jeu -> programme : je suis dans la maison de player-id (0 = dehors) ; mode = maison + 1
+(defconstant ONLINE_EVENT_INVITE 27)  ;; jeu -> programme : j'invite player-id dans ma maison (mode) ;
+                                      ;; programme -> jeu : player-id m'invite dans sa maison (mode)
 (defconstant ONLINE_EVENT_PERSO 23)   ;; jeu -> programme : je choisis ce personnage (mode = numero, 0 = Jak)
+(defconstant ONLINE_EVENT_WEAR 30)    ;; jeu -> programme : accessoires portes (mode : octet 0 tete, 1 visage, 2 dos)
+(defconstant ONLINE_EVENT_DIALOG 29)  ;; programme -> jeu : jouer le dialogue (mode = numero)
+(defconstant ONLINE_EVENT_MAIL 28)    ;; jeu -> programme : je releve la boite aux lettres (mode = maison x 16 + boite)
 
 ;; commandes de moderation (memes numeros que Jak3OnlineMonde.cs)
 (defconstant ONLINE_CMD_KICK 1)
@@ -447,6 +467,9 @@
 (defconstant ONLINE_CMD_HEAL 11)
 (defconstant ONLINE_CMD_GIVE 12)
 (defconstant ONLINE_CMD_TIME 13)
+(defconstant ONLINE_CMD_DAYLOCK 31)   ;; jour permanent pour tout le monde (arg 1 / 0)
+(defconstant ONLINE_CMD_WEATHER 32)   ;; meteo du monde (arg 0 beau temps, 1 pluie, 2 orage, 3 neige)
+(defconstant ONLINE_CMD_DIALOG 33)    ;; faire entendre un dialogue du jeu a tout le monde (arg = numero)
 (defconstant ONLINE_CMD_ANNOUNCE 14)
 (defconstant ONLINE_CMD_PVP 15)
 (defconstant ONLINE_CMD_HEAL_ALL 16)
@@ -471,10 +494,16 @@
 (defconstant ONLINE_EVK_ZONE 5)
 (defconstant ONLINE_EVK_HUNT 6)      ;; chasse a l'homme : le premier qui elimine la cible gagne
 (defconstant ONLINE_EVK_PARKOUR 7)   ;; parcours sur une carte : le premier arrive en haut gagne
+(defconstant ONLINE_EVK_MISSION 9)   ;; mission du jeu choisie par le createur : le premier qui la reussit gagne
 (defconstant ONLINE_EVK_METEOR 8)    ;; pluie de meteores : rester dans la zone sans mourir
+(defconstant ONLINE_EVK_KART 10)     ;; COURSE AUTO sur le circuit : un tour, le premier a l'arrivee gagne
+(defconstant ONLINE_EVK_HIDE 11)     ;; CACHE-CACHE au manoir : le premier qui trouve le personnage rouge gagne
 
 ;; cartes du mod (parcours), memes numeros que Maps dans Jak3OnlineEvents.cs
-(defconstant OW_MAP_COUNT 5)
+;; BEGIN MAP COUNT (build_maps.py)
+(defconstant OW_MAP_COUNT 17)
+(defconstant OW_PARKOUR_COUNT 8) ;; cartes 0..7 : parcours ; les suivantes : maisons
+;; END MAP COUNT (build_maps.py)
 
 ;; boss (ev-boss)
 (defconstant ONLINE_BOSS_DARKJAK 0)

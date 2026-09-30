@@ -22,17 +22,18 @@
 ;; Les tables ci-dessous sont ecrites par scratchpad/maps/build_maps.py (avec la geometrie).
 
 ;; BEGIN TABLES (build_maps.py)
-(define *ow-map-levels* (new 'static 'boxed-array :type string "ow-jak1" "ow-ciel" "ow-volcan" "ow-glace" "ow-paris"))
-(define *ow-map-names* (new 'static 'boxed-array :type string "Village de Jak 1" "Tour celeste" "Volcan" "Glacier" "Paris"))
-(define *ow-map-names-en* (new 'static 'boxed-array :type string "Jak 1 village" "Sky tower" "Volcano" "Glacier" "Paris"))
-(define *ow-map-stars* (new 'static 'array int32 5 1 3 4 4 5))
-(define *ow-map-reward* (new 'static 'array int32 5 900 2000 3000 3000 4000))
-(define *ow-map-kill-y* (new 'static 'array float 5 40.00 275.00 200.80 175.00 96.00))
-(define *ow-map-start* (new 'static 'array float 20 -1626.50 107.00 1812.50 90.00 3000.00 300.60 -3034.00 90.00 -3000.00 212.60 -3106.00 0.00 -3000.00 210.60 2964.00 0.00 3004.00 100.70 2856.00 0.00))
-(define *ow-map-first* (new 'static 'array int32 6 0 2 25 45 68 96))
-(define *ow-map-elems* (new 'static 'array float 768
+(define *ow-map-levels* (new 'static 'boxed-array :type string "ow-jak1" "ow-ciel" "ow-volcan" "ow-glace" "ow-paris" "ow-foret" "ow-usine" "ow-canyon" "ow-cabane" "ow-villa" "ow-chateau" "ow-cubes" "ow-manoir" "ow-tour" "ow-temple" "ow-palais" "ow-circuit"))
+(define *ow-map-names* (new 'static 'boxed-array :type string "Village de Jak 1" "Tour celeste" "Volcan" "Glacier" "Paris" "Foret suspendue" "Usine infernale" "Canyon du desert" "Cabane dans les bois" "Villa au bord de l'eau" "Chateau" "Maison en cubes" "Manoir" "Gratte-ciel" "Temple precurseur" "Palais de l'ile" "Circuit"))
+(define *ow-map-names-en* (new 'static 'boxed-array :type string "Jak 1 village" "Sky tower" "Volcano" "Glacier" "Paris" "Hanging forest" "Inferno factory" "Desert canyon" "Forest cabin" "Seaside villa" "Castle" "Block house" "Manor" "Skyscraper" "Precursor temple" "Island palace" "Race circuit"))
+(define *ow-map-stars* (new 'static 'array int32 17 1 3 4 4 5 3 5 2 1 1 1 1 1 1 1 1 2))
+(define *ow-map-reward* (new 'static 'array int32 17 900 2000 3000 3000 4000 2500 4500 1500 0 0 0 0 0 0 0 0 3000))
+(define *ow-map-kill-y* (new 'static 'array float 17 40.00 275.00 200.80 175.00 96.00 126.00 134.00 70.00 86.00 84.00 88.00 88.00 84.00 126.00 126.00 30.00 86.00))
+(define *ow-map-start* (new 'static 'array float 68 -1626.50 107.00 1812.50 90.00 3000.00 300.60 -3034.00 90.00 -3000.00 212.60 -3106.00 0.00 -3000.00 210.60 2964.00 0.00 3004.00 100.70 2856.00 0.00 0.00 150.60 2995.00 0.00 3000.00 150.60 -3.00 0.00 -3000.00 100.60 -4.00 0.00 0.00 100.60 -3012.00 0.00 1496.00 100.70 -1520.00 0.00 -1500.00 100.80 -1534.00 0.00 1500.00 100.30 1482.00 0.00 1500.00 100.30 -3054.00 0.00 -1500.00 150.80 -3030.00 0.00 3000.00 150.30 1454.00 0.00 3000.00 60.60 -1542.00 0.00 1484.00 100.60 2940.00 90.00))
+(define *ow-map-first* (new 'static 'array int32 18 0 3 26 46 69 97 113 140 152 154 161 166 170 176 184 197 214 229))
+(define *ow-map-elems* (new 'static 'array float 1832
     20.00 -1626.50 107.00 1812.50 6.00 0.00 0.00 0.00
     30.00 -1390.10 63.30 1489.60 7.00 0.00 0.00 0.00
+    50.00 -1500.00 59.65 1600.00 1700.00 1700.00 30.00 0.00
     20.00 3000.00 300.00 -3034.00 6.00 0.00 0.00 0.00
     1.00 3024.87 306.60 -2976.81 -4.64 0.00 4.97 5.00
     1.00 3005.32 307.60 -2966.42 -6.72 0.00 1.06 6.00
@@ -127,6 +128,138 @@
     20.00 3006.18 230.00 3131.40 2.00 0.00 0.00 0.00
     5.00 2995.53 237.50 3126.83 3.60 0.90 0.62 0.00
     30.00 3000.00 241.00 3130.00 3.20 0.00 0.00 0.00
+    20.00 0.00 150.00 2995.00 6.00 0.00 0.00 0.00
+    20.00 32.00 153.00 2999.00 4.00 0.00 0.00 0.00
+    20.00 52.00 156.00 3026.00 4.00 0.00 0.00 0.00
+    2.00 60.00 156.90 3032.00 3.60 8.00 0.00 0.00
+    3.00 68.00 162.00 3045.50 6.00 7.00 0.00 0.00
+    20.00 68.00 168.00 3053.00 4.00 0.00 0.00 0.00
+    1.00 61.00 168.00 3055.75 -1.46 0.00 -3.72 5.00
+    1.00 54.00 168.00 3058.50 -1.46 0.00 -3.72 6.00
+    1.00 47.00 168.00 3061.25 -1.46 0.00 -3.72 7.00
+    20.00 40.00 168.00 3064.00 4.00 0.00 0.00 0.00
+    5.00 33.40 169.88 3067.60 4.50 0.00 0.60 0.00
+    5.00 29.00 170.60 3070.00 4.50 0.30 0.60 0.00
+    5.00 24.60 171.32 3072.40 4.50 0.60 0.60 0.00
+    20.00 18.00 171.60 3076.00 4.50 0.00 0.00 0.00
+    30.00 0.00 186.00 3090.00 4.00 0.00 0.00 0.00
+    10.00 15.00 171.60 3079.00 14.40 1.80 -12.00 8.00
+    20.00 3000.00 150.00 -3.00 6.00 0.00 0.00 0.00
+    20.00 3004.00 153.20 43.20 4.00 0.00 0.00 0.00
+    3.00 3004.00 154.70 51.00 2.20 2.60 0.00 0.00
+    3.00 3004.00 154.70 57.20 2.20 2.60 0.25 0.00
+    3.00 3004.00 154.70 63.40 2.20 2.60 0.50 0.00
+    3.00 3004.00 154.70 69.60 2.20 2.60 0.75 0.00
+    20.00 3004.00 155.00 76.90 4.00 0.00 0.00 0.00
+    4.00 3002.00 155.00 84.90 -80.00 0.00 0.00 0.00
+    4.00 3006.00 155.00 91.50 70.00 0.00 0.00 0.00
+    4.00 3002.00 155.00 98.10 -80.00 0.00 0.00 0.00
+    1.00 3004.00 155.00 114.10 5.00 0.00 0.00 3.50
+    1.00 3004.00 155.00 120.60 -5.00 0.00 0.00 3.00
+    20.00 3004.00 155.00 128.60 4.00 0.00 0.00 0.00
+    5.00 2996.70 155.60 128.60 3.20 0.00 0.55 0.00
+    5.00 2990.90 156.20 128.60 3.20 0.23 0.55 0.00
+    5.00 2985.10 156.80 128.60 3.20 0.46 0.55 0.00
+    5.00 2979.30 157.40 128.60 3.20 0.69 0.55 0.00
+    5.00 2973.50 158.00 128.60 3.20 0.92 0.55 0.00
+    20.00 2966.50 158.60 128.60 4.00 0.00 0.00 0.00
+    11.00 2966.50 159.00 138.10 180.00 5.50 3.20 3.00
+    11.00 2966.50 159.60 144.60 0.00 5.50 3.20 3.00
+    11.00 2966.50 160.20 151.10 180.00 5.50 3.20 3.00
+    20.00 2966.50 160.50 160.00 4.00 0.00 0.00 0.00
+    3.00 2974.20 165.50 160.00 4.80 5.50 0.00 0.00
+    3.00 2980.40 174.50 160.00 4.80 5.50 0.30 0.00
+    3.00 2986.60 183.50 160.00 4.80 5.50 0.60 0.00
+    30.00 2994.80 188.50 160.00 3.50 0.00 0.00 0.00
+    20.00 -3000.00 100.00 -4.00 6.00 0.00 0.00 0.00
+    20.00 -3000.00 103.00 44.00 4.50 0.00 0.00 0.00
+    20.00 -2986.00 105.00 68.00 4.50 0.00 0.00 0.00
+    10.00 -2986.00 105.00 71.00 6.00 1.80 -14.00 21.00
+    10.00 -3002.00 111.00 96.00 8.00 1.80 -14.00 16.00
+    20.00 -3018.00 119.00 114.00 4.50 0.00 0.00 0.00
+    11.00 -3018.00 119.50 125.00 0.00 4.50 3.40 3.00
+    11.00 -3018.00 120.10 132.00 180.00 4.50 3.40 3.00
+    11.00 -3018.00 120.70 139.00 0.00 4.50 3.40 3.00
+    20.00 -3018.00 121.00 150.00 4.50 0.00 0.00 0.00
+    1.00 -3008.00 121.50 154.00 4.00 0.00 1.60 5.00
+    30.00 -2998.00 122.00 158.00 4.00 0.00 0.00 0.00
+    40.00 3.00 100.00 -3011.50 0.00 0.00 0.00 0.00
+    10.00 10.00 100.00 -2996.00 9.00 1.60 3.00 4.00
+    50.00 1500.00 98.80 -1500.00 190.00 190.00 7.00 0.00
+    3.00 1515.20 104.40 -1490.00 4.40 7.00 0.00 0.00
+    50.00 1502.00 100.80 -1508.00 7.00 3.50 0.72 0.00
+    10.00 1518.00 100.60 -1502.00 8.60 1.60 -10.00 14.00
+    6.00 1500.00 99.15 -1500.00 88.00 70.00 0.00 0.00
+    40.00 1502.00 100.30 -1517.00 0.00 0.00 0.00 0.00
+    40.00 1505.00 100.30 -1517.00 1.00 0.00 0.00 0.00
+    3.00 -1515.50 104.30 -1492.00 4.60 7.00 0.00 0.00
+    4.00 -1500.00 109.30 -1487.00 30.00 0.00 0.00 0.00
+    40.00 -1505.00 100.00 -1532.00 0.00 0.00 0.00 0.00
+    40.00 -1495.00 100.00 -1532.00 1.00 0.00 0.00 0.00
+    40.00 -1505.00 100.00 -1528.00 2.00 0.00 0.00 0.00
+    50.00 1518.00 101.80 1486.00 6.00 5.00 1.60 0.00
+    10.00 1484.00 100.00 1506.00 14.00 1.40 -6.00 0.00
+    40.00 1497.40 100.00 1491.00 0.00 0.00 0.00 0.00
+    40.00 1502.60 100.00 1491.00 1.00 0.00 0.00 0.00
+    50.00 1500.00 100.85 -3024.00 5.00 5.00 0.80 0.00
+    50.00 1544.00 101.70 -3010.00 9.00 4.50 1.80 0.00
+    40.00 1497.00 100.00 -3050.00 0.00 0.00 0.00 0.00
+    40.00 1503.00 100.00 -3050.00 1.00 0.00 0.00 0.00
+    40.00 1497.00 100.00 -3047.60 2.00 0.00 0.00 0.00
+    40.00 1503.00 100.00 -3047.60 3.00 0.00 0.00 0.00
+    3.00 -1493.50 180.60 -3006.50 30.00 16.00 0.75 0.00
+    10.00 -1514.00 150.40 -3026.00 61.00 1.80 0.00 11.00
+    50.00 -1490.00 212.10 -2990.00 5.00 4.00 1.60 0.00
+    40.00 -1508.00 150.40 -3024.00 0.00 0.00 0.00 0.00
+    40.00 -1504.00 150.40 -3024.00 1.00 0.00 0.00 0.00
+    40.00 -1500.00 150.40 -3024.00 2.00 0.00 0.00 0.00
+    40.00 -1496.00 150.40 -3024.00 3.00 0.00 0.00 0.00
+    40.00 -1492.00 150.40 -3024.00 4.00 0.00 0.00 0.00
+    50.00 2970.00 151.90 1512.00 6.00 8.00 2.00 0.00
+    50.00 3030.00 151.90 1512.00 6.00 8.00 2.00 0.00
+    2.00 3000.00 158.00 1512.00 34.00 24.00 0.00 0.00
+    2.00 3000.00 161.00 1512.00 34.00 28.00 0.25 0.00
+    2.00 3000.00 164.00 1512.00 34.00 32.00 0.50 0.00
+    2.00 3000.00 167.00 1512.00 34.00 36.00 0.75 0.00
+    40.00 2991.00 150.00 1460.00 0.00 0.00 0.00 0.00
+    40.00 2994.00 150.00 1460.00 1.00 0.00 0.00 0.00
+    40.00 2997.00 150.00 1460.00 2.00 0.00 0.00 0.00
+    40.00 3000.00 150.00 1460.00 3.00 0.00 0.00 0.00
+    40.00 3003.00 150.00 1460.00 4.00 0.00 0.00 0.00
+    40.00 3006.00 150.00 1460.00 5.00 0.00 0.00 0.00
+    40.00 3009.00 150.00 1460.00 6.00 0.00 0.00 0.00
+    50.00 3000.00 58.80 -1500.00 260.00 260.00 8.00 0.00
+    50.00 2978.00 60.95 -1512.00 5.00 5.00 0.80 0.00
+    50.00 3022.00 60.95 -1512.00 5.00 5.00 0.80 0.00
+    50.00 2952.00 62.00 -1480.00 8.00 6.00 2.00 0.00
+    10.00 2956.00 60.10 -1464.00 8.40 1.40 -4.00 -4.00
+    6.00 3000.00 59.15 -1500.00 132.00 90.00 0.00 0.00
+    6.00 3000.00 59.15 -1500.00 150.00 120.00 0.50 0.00
+    40.00 2993.50 60.15 -1536.00 0.00 0.00 0.00 0.00
+    40.00 2993.50 60.15 -1532.80 1.00 0.00 0.00 0.00
+    40.00 2993.50 60.15 -1529.60 2.00 0.00 0.00 0.00
+    40.00 2993.50 60.15 -1526.40 3.00 0.00 0.00 0.00
+    40.00 2993.50 60.15 -1523.20 4.00 0.00 0.00 0.00
+    40.00 3006.50 60.15 -1536.00 5.00 0.00 0.00 0.00
+    40.00 3006.50 60.15 -1532.80 6.00 0.00 0.00 0.00
+    40.00 3006.50 60.15 -1529.60 7.00 0.00 0.00 0.00
+    40.00 3006.50 60.15 -1526.40 8.00 0.00 0.00 0.00
+    40.00 3006.50 60.15 -1523.20 9.00 0.00 0.00 0.00
+    12.00 1545.00 100.10 2940.00 5.00 22.00 1.00 0.00
+    12.00 1455.00 100.10 3060.00 5.00 22.00 -1.00 0.00
+    12.00 1430.00 100.10 2940.00 5.00 22.00 1.00 0.00
+    12.00 1570.00 100.10 3060.00 5.00 22.00 -1.00 0.00
+    20.00 1660.00 100.10 3000.00 12.00 0.00 0.00 0.00
+    20.00 1500.00 100.10 3060.00 12.00 0.00 0.00 0.00
+    20.00 1340.00 100.10 3000.00 12.00 0.00 0.00 0.00
+    30.00 1500.00 100.10 2940.00 10.00 0.00 0.00 0.00
+    13.00 1515.00 100.10 2936.00 3.00 0.00 0.00 0.00
+    13.00 1515.00 100.10 2944.00 3.00 0.00 0.00 0.00
+    13.00 1440.00 100.10 3056.00 3.00 0.00 0.00 0.00
+    13.00 1440.00 100.10 3064.00 3.00 0.00 0.00 0.00
+    13.00 1660.00 100.10 2990.00 3.00 0.00 0.00 0.00
+    13.00 1340.00 100.10 3010.00 3.00 0.00 0.00 0.00
+    50.00 1500.00 98.80 3000.00 400.00 400.00 8.00 0.00
     ))
 ;; END TABLES (build_maps.py)
 
@@ -135,6 +268,13 @@
 (defconstant OWM_LIFT 3)
 (defconstant OWM_SPIN 4)
 (defconstant OWM_VANISH 5)
+(defconstant OWM_BOAT 6)     ;; BATEAU (modele ow-bateau) qui tourne autour du point, cap dans le sens de la marche
+(defconstant OWM_BOOST 12)   ;; accelerateur du circuit : a = rayon, b = vitesse ajoutee (m/s), c d = direction
+(defconstant OWM_TURBO 13)   ;; TURBO a ramasser (le vrai du jeu : turbo-pickup), il reapparait
+(defconstant OW_MAP_CIRCUIT 16)
+(defconstant OW_MAP_HIDE 12)  ;; le cache-cache se joue au manoir
+(defconstant OWM_MAIL 40)    ;; boite aux lettres d'une maison (a = numero)
+(defconstant OWM_WATER 50)   ;; eau ou l'on nage : (x y z) = centre de la surface, a b = demi-largeurs, c = profondeur
 (defconstant OWM_PAD 10)
 (defconstant OWM_WIND 11)
 (defconstant OWM_CHECK 20)
@@ -145,6 +285,11 @@
 ;; dans le DGO de chaque carte : la plateforme est rattachee au niveau de la carte.
 (def-actor ow-plat
   :bounds (0 0 0 4)
+  )
+
+;; le bateau des maisons au bord de l'eau (modele ow-bateau.glb : pont a y = 0, 9 x 3.6 m)
+(def-actor ow-bateau
+  :bounds (0 0 0 6)
   )
 
 (deftype ow-maps-state (basic)
@@ -165,6 +310,18 @@
    (boost-top    float)        ;; ... ou jusqu'a cette hauteur
    (boost-vel    vector :inline)
    (leaving-until time-frame)  ;; depart en cours (goto / retour au port) : pas de regles de carte
+   (mail-k       int32)        ;; boite aux lettres ou je suis (-1 : aucune)
+   (race-next    int32)        ;; COURSE AUTO : prochain point de passage a franchir
+   (race-placed  uint32)       ;; ... course pour laquelle j'ai ete place sur la grille
+   (race-veh     time-frame)   ;; ... dernier vehicule donne
+   (boost-time   time-frame)
+   (hide-npc     handle)       ;; CACHE-CACHE : le personnage rouge
+   (hide-found   uint32)
+   (tinted       symbol)       ;; les joueurs sont teintes en bleu
+   (turbos       handle 16)    ;; COURSE AUTO : les turbos poses (un par element OWM_TURBO)
+   (turbo-gone   time-frame 16)
+   (veh-rules    symbol)       ;; tirs et turbo des vehicules autorises (reglages poses)
+   (mail-time    time-frame)
    (str          string)
    )
   )
@@ -188,6 +345,20 @@
   (set! (-> m boost-until) 0)
   (set! (-> m leaving-until) 0)
   (set! (-> m orb) (the-as handle #f))
+  (set! (-> m mail-k) -1)
+  (set! (-> m mail-time) 0)
+  (set! (-> m race-next) 0)
+  (set! (-> m race-placed) (the-as uint 0))
+  (set! (-> m race-veh) 0)
+  (set! (-> m boost-time) 0)
+  (set! (-> m hide-npc) (the-as handle #f))
+  (set! (-> m hide-found) (the-as uint 0))
+  (set! (-> m tinted) #f)
+  (set! (-> m veh-rules) #f)
+  (dotimes (k 16)
+    (set! (-> m turbos k) (the-as handle #f))
+    (set! (-> m turbo-gone k) 0)
+    )
   (set! (-> m str) (new 'global 'string 96 (the-as string #f)))
   )
 
@@ -234,10 +405,15 @@
   (the-as symbol (>= (ow-map-current) 0))
   )
 
+(defun ow-evk-map? ((k int))
+  "evenement qui se joue sur une carte du mod (parcours, course auto, cache-cache)"
+  (the-as symbol (or (= k ONLINE_EVK_PARKOUR) (= k ONLINE_EVK_KART) (= k ONLINE_EVK_HIDE)))
+  )
+
 (defun ow-map-event? ((i int))
   "un parcours est en cours sur cette carte"
   (and (online-in-session?)
-       (= (-> *online-ext* ev-kind) ONLINE_EVK_PARKOUR)
+       (ow-evk-map? (the-as int (-> *online-ext* ev-kind)))
        (= (-> *online-ext* ev-state) 1)
        (= (the-as int (-> *online-ext* ev-boss)) i)
        )
@@ -245,7 +421,7 @@
 
 (defun ow-map-clock ()
   "horloge commune (secondes) : celle de l'evenement s'il y en a un, sinon celle du jeu"
-  (if (and (online-in-session?) (= (-> *online-ext* ev-kind) ONLINE_EVK_PARKOUR) (= (-> *online-ext* ev-state) 1))
+  (if (and (online-in-session?) (ow-evk-map? (the-as int (-> *online-ext* ev-kind))) (= (-> *online-ext* ev-state) 1))
       (- (-> *online-ext* ev-dur) (-> *online-ext* ev-timer))
       (/ (the float (online-now)) 300.0)
       )
@@ -310,6 +486,22 @@
        )
       ((OWM_LIFT)
        (+! (-> pos y) (* (meters 1.0) (-> self pa) (sin (* 65536.0 (+ (-> self pc) (/ t (fmax 0.5 (-> self pb))))))))
+       )
+      ((OWM_BOAT)
+       (let ((a (* 65536.0 (+ (-> self pc) (/ t (fmax 0.5 (-> self pb)))))))
+         (+! (-> pos x) (* (meters 1.0) (-> self pa) (cos a)))
+         (+! (-> pos z) (* (meters 1.0) (-> self pa) (sin a)))
+         (+! (-> pos y) (* (meters 0.12) (sin (* 65536.0 (/ t 3.1)))))
+         ;; cap : la tangente au cercle (sens de la marche)
+         (let ((q (new 'stack-no-clear 'quaternion))
+               (r (new 'stack-no-clear 'quaternion))
+               )
+           (quaternion-axis-angle! (-> self root quat) 0.0 1.0 0.0 (- a))
+           (quaternion-axis-angle! r 0.0 0.0 1.0 (* 400.0 (sin (* 65536.0 (/ t 2.3)))))
+           (quaternion*! q (-> self root quat) r)
+           (quaternion-copy! (-> self root quat) q)
+           )
+         )
        )
       ((OWM_SPIN)
        (quaternion-axis-angle! (-> self root quat) 0.0 1.0 0.0 (* 182.04445 (-> self pa) t))
@@ -402,7 +594,13 @@
   (vector-copy! (-> self root trans) (-> self base))
   (quaternion-identity! (-> self root quat))
   (vector-identity! (-> self root scale))
-  (initialize-skeleton self *ow-plat-sg* (the-as pair 0))
+  (if (= (-> self kind) OWM_BOAT)
+      (initialize-skeleton self *ow-bateau-sg* (the-as pair 0))
+      (initialize-skeleton self *ow-plat-sg* (the-as pair 0))
+      )
+  (if (= (-> self kind) OWM_BOAT)
+      (set-vector! (-> self root root-prim local-sphere) 0.0 0.0 0.0 (meters 7.0))
+      )
   (logclear! (-> self mask) (process-mask actor-pause))
   (logior! (-> self mask) (process-mask platform))
   (ow-plat-move!)
@@ -449,7 +647,7 @@
              (kind (the int (ow-map-elem k 0)))
              )
         (+! (-> m plat-next) 1)
-        (when (and (>= kind OWM_LINE) (<= kind OWM_VANISH))
+        (when (and (>= kind OWM_LINE) (<= kind OWM_BOAT))
           (let ((slot -1))
             (dotimes (s OWM_MAX_PLATS)
               (if (and (< slot 0) (not (handle->process (-> m plats s))))
@@ -509,7 +707,7 @@
 (defun ow-map-join! ()
   "rejoindre le parcours en cours"
   (let ((ext *online-ext*))
-    (when (and (online-in-session?) (= (-> ext ev-kind) ONLINE_EVK_PARKOUR) (= (-> ext ev-state) 1))
+    (when (and (online-in-session?) (ow-evk-map? (the-as int (-> ext ev-kind))) (= (-> ext ev-state) 1))
       (set! (-> *ow-maps* joined) (-> ext ev-id))
       (set! (-> *ow-maps* leave-at) 0)
       (ow-map-goto! (the-as int (-> ext ev-boss)))
@@ -574,6 +772,134 @@
     )
   )
 
+(defun ow-map-count-elem ((i int) (kind int))
+  "nombre d'elements de cette sorte sur la carte"
+  (let ((n 0)
+        (k (-> *ow-map-first* i))
+        )
+    (while (< k (-> *ow-map-first* (+ i 1)))
+      (if (= (the int (ow-map-elem k 0)) kind)
+          (+! n 1)
+          )
+      (+! k 1)
+      )
+    n
+    )
+  )
+
+(define *ow-veh-free* #f) ;; course auto : le vehicule est prete (pas besoin de l'avoir achete)
+
+(defun ow-turbos-tick! ((i int))
+  "les TURBOS du circuit (vrais turbo-pickup du jeu : le vehicule les garde, R2 pour les lancer)"
+  (let ((m *ow-maps*)
+        (n 0)
+        (k (-> *ow-map-first* i))
+        (now (online-now))
+        )
+    (while (and (< k (-> *ow-map-first* (+ i 1))) (< n 16))
+      (when (= (the int (ow-map-elem k 0)) OWM_TURBO)
+        (cond
+          ((handle->process (-> m turbos n))
+           (set! (-> m turbo-gone n) now)
+           )
+          ((< (seconds 6) (- now (-> m turbo-gone n)))
+           (let ((p (new 'stack-no-clear 'vector)))
+             (set-vector! p (* (meters 1.0) (ow-map-elem k 1)) (+ (* (meters 1.0) (ow-map-elem k 2)) (meters 1.2))
+                          (* (meters 1.0) (ow-map-elem k 3)) 1.0)
+             (let ((tp (race-turbo-pickup-spawn (the-as process *entity-pool*) p)))
+               (if tp
+                   (set! (-> m turbos n) (process->handle tp))
+                   )
+               )
+             )
+           )
+          )
+        (+! n 1)
+        )
+      (+! k 1)
+      )
+    )
+  (none)
+  )
+
+(defun ow-turbos-clear! ()
+  (let ((m *ow-maps*))
+    (dotimes (n 16)
+      (let ((p (handle->process (-> m turbos n))))
+        (if p
+            (deactivate p)
+            )
+        )
+      (set! (-> m turbos n) (the-as handle #f))
+      (set! (-> m turbo-gone n) 0)
+      )
+    )
+  (none)
+  )
+
+(defun ow-veh-rules-tick! ()
+  "dans le monde en ligne, en vehicule : on peut TIRER (R1) et lancer ses TURBOS (R2), meme si
+   l'histoire ne les a pas encore debloques"
+  (let* ((m *ow-maps*)
+         (want (and (online-in-session?) (-> *online-world* active) *target* (focus-test? *target* pilot)))
+         )
+    (cond
+      ((and want (not (-> m veh-rules)))
+       (set-setting-by-param *setting-control* 'gun #t 0 0)
+       (set-setting-by-param *setting-control* 'turbo #t 0 0)
+       (set! (-> m veh-rules) #t)
+       )
+      ((and (not want) (-> m veh-rules))
+       (remove-setting-by-arg0 *setting-control* 'gun)
+       (remove-setting-by-arg0 *setting-control* 'turbo)
+       (set! (-> m veh-rules) #f)
+       )
+      )
+    )
+  (none)
+  )
+
+(defun ow-kart-tick! ((i int))
+  "COURSE AUTO : place sur la grille, un vehicule pour chacun, points de passage dans l'ordre"
+  (let ((m *ow-maps*)
+        (ext *online-ext*)
+        (t *target*)
+        (now (online-now))
+        )
+    (ow-turbos-tick! i)
+    (when (and t (ow-map-event? i) (= (-> ext ev-kind) ONLINE_EVK_KART) (not (-> m finished)) (not (focus-test? t dead)))
+      ;; arrivee sur le circuit : ma place sur la grille (4 de front, rangees de 7 m)
+      (when (!= (-> m race-placed) (-> ext ev-id))
+        (set! (-> m race-placed) (-> ext ev-id))
+        (set! (-> m race-next) 0)
+        (set! (-> m race-veh) 0)
+        (let* ((id (the-as int (-> *online-shm* my-id)))
+               (lane (+ -1.5 (the float (logand id 3))))
+               (row (the float (logand (shr id 2) 3)))
+               (p (new 'stack-no-clear 'vector))
+               )
+          (set-vector! p (* (meters 1.0) (-> *ow-map-start* (* i 4))) (* (meters 1.0) (-> *ow-map-start* (+ (* i 4) 1)))
+                       (* (meters 1.0) (-> *ow-map-start* (+ (* i 4) 2))) 1.0)
+          (+! (-> p x) (* (meters -7.0) row))
+          (+! (-> p z) (* (meters 3.6) lane))
+          (format 0 "[jak3-online] course auto : place sur la grille ~M ~M ~M~%" (-> p x) (-> p y) (-> p z))
+          (move-to-point! (-> t control) p)
+          )
+        )
+      ;; pas (ou plus) de vehicule : on en recoit un (le Requin des sables, robuste)
+      (when (and (not (focus-test? t pilot)) (< (seconds 4) (- now (-> m race-veh))))
+        (set! (-> m race-veh) now)
+        (set! *ow-veh-free* #t)
+        (format 0 "[jak3-online] course auto : vehicule~%")
+        (ow-spawn-vehicle! 45)
+        (format 0 "[jak3-online] course auto : vehicule demande~%")
+        (set! *ow-veh-free* #f)
+        )
+      )
+    )
+  (none)
+  )
+
 (defun ow-map-tick-inside! ((i int))
   (let* ((m *ow-maps*)
          (t *target*)
@@ -583,6 +909,7 @@
          (k1 (-> *ow-map-first* (+ i 1)))
          )
     (ow-map-spawn-plats! i)
+    (ow-kart-tick! i)
     ;; l'orbe de l'arrivee tourne
     (let ((orb (the-as process-drawable (handle->process (-> m orb)))))
       (when orb
@@ -629,7 +956,9 @@
       (if (< (-> t control trans y) (* (meters 1.0) (-> *ow-map-kill-y* i)))
           (ow-map-respawn! i)
           )
-      (let ((k k0))
+      (let ((k k0)
+            (mail-here -1)
+            )
         (while (< k k1)
           (let ((kind (the int (ow-map-elem k 0))))
             (case kind
@@ -640,12 +969,49 @@
                        )
                    (when (or (not (-> m check-set)) (< (meters 3.0) (+ (fabs (- cx (-> m check x))) (fabs (- cz (-> m check z))))))
                      (set-vector! (-> m check) cx (* (meters 1.0) (ow-map-elem k 2)) cz 1.0)
-                     (when (-> m check-set)
+                     ;; course auto : c'est le prochain a franchir ?
+                     (when (and (ow-map-event? i) (= (-> ext ev-kind) ONLINE_EVK_KART))
+                       (let ((ord 0)
+                             (q k0)
+                             )
+                         (while (< q k)
+                           (if (= (the int (ow-map-elem q 0)) OWM_CHECK)
+                               (+! ord 1)
+                               )
+                           (+! q 1)
+                           )
+                         (when (= ord (-> m race-next))
+                           (+! (-> m race-next) 1)
+                           (online-push-out-event! ONLINE_EVENT_EVENT (the-as uint 0) 0.0 (+ 10 ord) (-> t control trans))
+                           (format (clear (-> m str)) (online-fr "Point de passage ~D / ~D" "Checkpoint ~D / ~D")
+                                   (-> m race-next) (ow-map-count-elem i OWM_CHECK))
+                           (ow-hint! (-> m str))
+                           (sound-play "skill-pickup")
+                           )
+                         )
+                       )
+                     (when (and (-> m check-set) (not (and (ow-map-event? i) (= (-> ext ev-kind) ONLINE_EVK_KART))))
                        (ow-hint! (online-fr "Point de passage !" "Checkpoint!"))
                        (sound-play "skill-pickup")
                        )
                      (set! (-> m check-set) #t)
                      )
+                   )
+                 )
+               )
+              ((OWM_BOOST)
+               ;; ACCELERATEUR : mon vehicule prend de la vitesse dans le sens de la fleche
+               (let ((veh (ow-my-vehicle)))
+                 (when (and veh (ow-map-in-zone? k (* (meters 1.0) (ow-map-elem k 4)) (meters 4.0) (meters 2.0))
+                            (< (seconds 1) (- now (-> m boost-time))))
+                   (set! (-> m boost-time) now)
+                   (let ((dv (new 'stack-no-clear 'vector)))
+                     (set-vector! dv (* (meters 1.0) (ow-map-elem k 5) (ow-map-elem k 6)) 0.0
+                                  (* (meters 1.0) (ow-map-elem k 5) (ow-map-elem k 7)) 0.0)
+                     (ow-vehicle-kick! veh dv)
+                     )
+                   (sound-play "launch-fire")
+                   (ow-hint! (online-fr "TURBO !" "BOOST!"))
                    )
                  )
                )
@@ -689,9 +1055,41 @@
                    )
                  )
                )
+              ((OWM_MAIL)
+               (when (ow-map-in-zone? k (meters 1.5) (meters 2.6) (meters 1.0))
+                 (set! mail-here k)
+                 (when (and (!= (-> m mail-k) k) (< (seconds 2) (- now (-> m mail-time))))
+                   (set! (-> m mail-k) k)
+                   (set! (-> m mail-time) now)
+                   (cond
+                     ((and (>= i OW_PARKOUR_COUNT) (online-in-session?)
+                           (or (zero? *ow-house-owner*) (= *ow-house-owner* (-> *online-shm* my-id)))
+                           )
+                      ;; ma boite : le programme compte le courrier (orbes) depuis la derniere releve
+                      (online-push-out-event! ONLINE_EVENT_MAIL (the-as uint 0) 0.0
+                                              (+ (* 16 (- i OW_PARKOUR_COUNT)) (the int (ow-map-elem k 4)))
+                                              (-> t control trans))
+                      (sound-play "skill-pickup")
+                      )
+                     (else
+                       (ow-hint! (online-fr "Boite aux lettres : seul le proprietaire peut relever le courrier" "Mailbox: only the owner can collect the mail"))
+                       )
+                     )
+                   )
+                 )
+               )
               ((OWM_FINISH)
                (when (ow-map-in-zone? k (* (meters 1.0) (ow-map-elem k 4)) (meters 14.0) (meters 6.0))
                  (cond
+                   ((and (ow-map-event? i) (= (-> ext ev-kind) ONLINE_EVK_KART) (< (-> m race-next) (ow-map-count-elem i OWM_CHECK)))
+                    ;; course auto : il faut d'abord passer les points de passage (un tour complet)
+                    (when (< (seconds 3) (- now (-> m hint-time)))
+                      (set! (-> m hint-time) now)
+                      (format (clear (-> m str)) (online-fr "Fais le tour ! Points de passage : ~D / ~D" "Do the lap! Checkpoints: ~D / ~D")
+                              (-> m race-next) (ow-map-count-elem i OWM_CHECK))
+                      (ow-hint! (-> m str))
+                      )
+                    )
                    ((and (ow-map-event? i) (!= (-> m finish-sent) (-> ext ev-id)))
                     (set! (-> m finish-sent) (-> ext ev-id))
                     (set! (-> m finished) #t)
@@ -710,6 +1108,10 @@
             )
           (+! k 1)
           )
+        ;; sorti de la boite : on pourra la relever a nouveau en y revenant
+        (if (< mail-here 0)
+            (set! (-> m mail-k) -1)
+            )
         )
       )
     ;; la course est finie (un gagnant, ou le temps) : retour au port
@@ -729,7 +1131,7 @@
   (let ((ext *online-ext*))
     (if (and (online-in-session?)
              (-> *online-world* active)
-             (= (-> ext ev-kind) ONLINE_EVK_PARKOUR)
+             (ow-evk-map? (the-as int (-> ext ev-kind)))
              (= (-> ext ev-state) 1)
              (!= (-> ext ev-id) (-> *ow-maps* joined))
              (!= (-> ext ev-id) (-> *ow-maps* declined))
@@ -752,7 +1154,467 @@
        )
   )
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; LE VILLAGE DE JAK 1 : la mer (on y nage) et le REQUIN LURKER (repris du mod "Jak 4" de
+;; l'utilisateur) : qui nage trop loin du rivage se fait manger, comme dans Jak 1. Regagner la
+;; terre ferme a temps le fait repartir.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def-actor ow-requin :bounds (0 0 0 6) :texture-level 11)
+
+(defconstant OW_MER_J1 59.65) ;; la mer du village (metres, decalage du village compris)
+
+(defun ow-dans-l-eau? ()
+  "Jak touche l'eau (nage, pieds dans l'eau, sous l'eau)"
+  (the symbol (and *target* (nonzero? (-> *target* water))
+                   (logtest? (-> *target* water flags) (water-flag touch-water swimming under-water wading)))))
+
+(deftype ow-requin (process-drawable)
+  ((t0       time-frame)
+   (mange?   symbol)
+   (fini?    symbol)
+   (proie    vector :inline)
+   )
+  (:state-methods chasse)
+  )
+
+;; une image de chasse (hors de la boucle du :code : sa pile sauvegardee est petite)
+(defbehavior ow-requin-pas! ow-requin ()
+  (let* ((age (* (/ 1.0 300.0) (the float (- (current-time) (-> self t0)))))
+         (cible (if *target* (-> *target* control trans) (-> self proie)))
+         (dir (vector-! (new 'stack-no-clear 'vector) cible (-> self root trans)))
+         (sur-terre? (and *target* (> (-> cible y) (meters (+ OW_MER_J1 0.9)))
+                          (logtest? (-> *target* control status) (collide-status on-surface))
+                          (not (ow-dans-l-eau?))))
+         (dist 0.0)
+         )
+    (set! (-> dir y) 0.0)
+    (set! dist (vector-length dir))
+    (cond
+      ;; Jak a regagne la terre (ou n'est plus sur le village) : le requin repart
+      ((and (not (-> self mange?)) (or sur-terre? (not *target*) (focus-test? *target* dead)))
+       (set! (-> self fini?) #t)
+       )
+      ((and (not (-> self mange?))
+            (or (< (meters 2.5) dist) (not (ow-dans-l-eau?)))
+            )
+       ;; il approche entre deux eaux, l'aileron dehors, de plus en plus vite
+       (vector-normalize! dir (fmin (fmax 0.0 (- dist (meters 1.0)))
+                                    (* (+ (meters 6.0) (* (meters 3.0) age)) (seconds-per-frame))))
+       (vector+! (-> self root trans) (-> self root trans) dir)
+       (set! (-> self root trans y) (- (meters OW_MER_J1) (meters 1.2)))
+       (quaternion-axis-angle! (-> self root quat) 0.0 1.0 0.0 (atan (-> dir x) (-> dir z)))
+       )
+      (else
+        ;; il jaillit sous Jak, gueule ouverte
+        (when (not (-> self mange?))
+          (set! (-> self mange?) #t)
+          (set-time! (-> self t0))
+          )
+        (let ((t (* (/ 1.0 300.0) (the float (- (current-time) (-> self t0))))))
+          (vector-copy! (-> self root trans) cible)
+          (set! (-> self root trans y) (+ (- (meters OW_MER_J1) (meters 3.0)) (* (meters 5.0) (fmin 1.0 (* 2.5 t)))))
+          (let ((q (new 'stack-no-clear 'quaternion)))
+            (quaternion-axis-angle! q 1.0 0.0 0.0 -12000.0)
+            (quaternion-axis-angle! (-> self root quat) 0.0 1.0 0.0 (atan (-> dir x) (-> dir z)))
+            (quaternion*! (-> self root quat) (-> self root quat) q)
+            )
+          (when (and (< 0.3 t) (< t 0.36) *target* (not (focus-test? *target* dead)))
+            (sound-play "splash" :position #f)
+            (sound-play "punch-hit" :position #f)
+            (activate! *camera-smush-control* 1638.4 37 300 1.0 1.1 (-> *display* camera-clock))
+            (send-event *target* 'attack-invinc #f
+                        (static-attack-info ((id (new-attack-id)) (damage 100.0) (mode 'drown-death)))
+                        )
+            )
+          (if (< 2.0 t)
+              (set! (-> self fini?) #t)
+              )
+          )
+        )
+      )
+    )
+  (none)
+  )
+
+(defstate chasse (ow-requin)
+  :virtual #t
+  :code (behavior ()
+    (sound-play "splash" :position (-> self root trans))
+    (set! (-> self mange?) #f)
+    (set! (-> self fini?) #f)
+    (until (-> self fini?)
+      (ow-requin-pas!)
+      (suspend)
+      )
+    (deactivate self)
+    )
+  :post ja-post
+  )
+
+(defbehavior ow-requin-init-by-other ow-requin ((pos vector))
+  (set! (-> self root) (new 'process 'trsqv))
+  (vector-copy! (-> self root trans) pos)
+  (vector-copy! (-> self proie) pos)
+  (quaternion-identity! (-> self root quat))
+  (set-vector! (-> self root scale) 1.3 1.3 1.3 1.0)
+  (set-time! (-> self t0))
+  (initialize-skeleton self (the-as skeleton-group *ow-requin-sg*) (the-as pair 0))
+  ;; art dans GAME : dessine dans les files du niveau ou est Jak (comme les personnages)
+  (ow-perso-draw-level! (-> self draw) #t)
+  (logclear! (-> self mask) (process-mask actor-pause))
+  (go-virtual chasse)
+  )
+
+(deftype ow-mer-garde (structure)
+  ((t-sur     time-frame)
+   (t-nage    time-frame)
+   (t-requin  time-frame)
+   (requin    handle)
+   (sur       vector :inline)   ;; dernier point sur la terre ferme
+   )
+  )
+
+(define *ow-mer* (new 'static 'ow-mer-garde))
+;; handle vide = #f (un handle a 0 ferait lire l'adresse 0 dans handle->process)
+(set! (-> *ow-mer* requin) (the-as handle #f))
+
+(defun ow-water-tick! ((i int))
+  "l'eau des cartes du mod (mer, piscines, bassins) : on y nage. Choisit l'eau sous Jak (la plus haute)"
+  (let ((best -1)
+        (top -1000000000.0)
+        )
+    (when (and *target* (>= i 0) (< i OW_MAP_COUNT))
+      (let ((jp (-> *target* control trans))
+            (k (-> *ow-map-first* i))
+            (k1 (-> *ow-map-first* (+ i 1)))
+            )
+        (while (< k k1)
+          (when (= (the int (ow-map-elem k 0)) OWM_WATER)
+            (let ((y (* (meters 1.0) (ow-map-elem k 2))))
+              (when (and (< (fabs (- (-> jp x) (* (meters 1.0) (ow-map-elem k 1)))) (* (meters 1.0) (ow-map-elem k 4)))
+                         (< (fabs (- (-> jp z) (* (meters 1.0) (ow-map-elem k 3)))) (* (meters 1.0) (ow-map-elem k 5)))
+                         (< (-> jp y) (+ y (meters 4.0)))
+                         (< (- y (* (meters 1.0) (ow-map-elem k 6)) (meters 3.0)) (-> jp y))
+                         (< top y)
+                         )
+                (set! best k)
+                (set! top y)
+                )
+              )
+            )
+          (+! k 1)
+          )
+        )
+      )
+    (cond
+      ((>= best 0)
+       (set! *online-sea-y* top)
+       (set! *online-sea-x0* (* (meters 1.0) (- (ow-map-elem best 1) (ow-map-elem best 4))))
+       (set! *online-sea-x1* (* (meters 1.0) (+ (ow-map-elem best 1) (ow-map-elem best 4))))
+       (set! *online-sea-z0* (* (meters 1.0) (- (ow-map-elem best 3) (ow-map-elem best 5))))
+       (set! *online-sea-z1* (* (meters 1.0) (+ (ow-map-elem best 3) (ow-map-elem best 5))))
+       )
+      (else
+        (set! *online-sea-y* -1000000000.0)
+        )
+      )
+    )
+  (none)
+  )
+
+(defun ow-mer-tick! ((i int))
+  "la mer du village (nage) et son requin"
+  (ow-water-tick! i)
+  (let ((g *ow-mer*))
+    (cond
+      ((and (= i 0) *target*)
+       (let ((jp (-> *target* control trans)))
+         (when (and (logtest? (-> *target* control status) (collide-status on-surface))
+                    (> (-> jp y) (meters (+ OW_MER_J1 1.2)))
+                    (time-elapsed? (-> g t-sur) (seconds 0.5))
+                    )
+           (set-time! (-> g t-sur))
+           (vector-copy! (-> g sur) jp)
+           )
+         (cond
+           ((not (ow-dans-l-eau?))
+            (set-time! (-> g t-nage))
+            )
+           ((and (time-elapsed? (-> g t-nage) (seconds 3))
+                 (< (meters 26.0) (vector-vector-xz-distance jp (-> g sur)))
+                 (time-elapsed? (-> g t-requin) (seconds 12))
+                 (not (handle->process (-> g requin)))
+                 (nonzero? *ow-requin-sg*)
+                 )
+            (set-time! (-> g t-requin))
+            (set! *ow-owcom-sticky* #t)
+            (ow-hint! (online-fr "UN REQUIN LURKER ! Regagne vite la terre !" "A LURKER SHARK! Get back to land!"))
+            (let ((p (new 'stack-no-clear 'vector))
+                  (a (* 65536.0 (rand-vu)))
+                  )
+              (set-vector! p (+ (-> jp x) (* (meters 28.0) (sin a))) (- (meters OW_MER_J1) (meters 1.2))
+                           (+ (-> jp z) (* (meters 28.0) (cos a))) 1.0)
+              (let ((pp (process-spawn ow-requin p :name "ow-requin" :to *entity-pool* :stack-size #x4000)))
+                (if pp
+                    (set! (-> g requin) (ppointer->handle pp))
+                    )
+                )
+              )
+            )
+           )
+         )
+       )
+      (else
+        (let ((r (handle->process (-> g requin))))
+          (if r
+              (deactivate r)
+              )
+          )
+        (set! (-> g requin) (the-as handle #f))
+        )
+      )
+    )
+  (none)
+  )
+
+(define-extern ow-map-find-elem (function int int int int))
+(define-extern ow-map-test-goto-elem! (function int float none))
+
+(defun ow-maisons-test! ((arg int))
+  "banc de test : 630 + n = aller a la boite aux lettres n de la carte ; 640 + n = dans l'eau n ;
+   645 = pad 38 : 1 nage, 2 bateau(x) pose(s), 4 dans une boite"
+  (let ((i (ow-map-current)))
+    (cond
+      ((and (>= arg 630) (< arg 640) (>= i 0))
+       (ow-map-test-goto-elem! (ow-map-find-elem i OWM_MAIL (+ arg -630)) (meters 0.3))
+       )
+      ((and (>= arg 640) (< arg 645) (>= i 0))
+       (let ((k (ow-map-find-elem i OWM_WATER (+ arg -640))))
+         (when (and (>= k 0) *target*)
+           (let ((p (new 'stack-no-clear 'vector)))
+             (set-vector! p (* (meters 1.0) (+ (ow-map-elem k 1) (* 0.6 (ow-map-elem k 4))))
+                          (* (meters 1.0) (- (ow-map-elem k 2) 0.9))
+                          (* (meters 1.0) (ow-map-elem k 3)) 1.0)
+             (move-to-point! (-> *target* control) p)
+             (vector-reset! (-> *target* control transv))
+             )
+           )
+         )
+       )
+      ((and (>= arg 690) (< arg 697) *target* (>= i 0))
+       ;; 690 + n : a pied au n-ieme point de passage ; 695 : a l'arrivee ; 696 : au personnage rouge
+       (if (focus-test? *target* pilot)
+           (send-event *target* 'end-mode 'pilot)
+           )
+       (cond
+         ((< arg 695)
+          (ow-map-test-goto-elem! (ow-map-find-elem i OWM_CHECK (+ arg -690)) (meters 0.6))
+          )
+         ((= arg 695)
+          (ow-map-test-goto-elem! (ow-map-find-elem i OWM_FINISH 0) (meters 0.6))
+          )
+         (else
+           (let ((npc (the-as process-drawable (handle->process (-> *ow-maps* hide-npc)))))
+             (when npc
+               (let ((p (vector-copy! (new 'stack-no-clear 'vector) (-> npc root trans))))
+                 (+! (-> p x) (meters 1.0))
+                 (+! (-> p y) (meters 0.3))
+                 (move-to-point! (-> *target* control) p)
+                 )
+               )
+             )
+           )
+         )
+       )
+      ((= arg 697)
+       ;; pad 41 : 1 je pilote, 2 personnage rouge present, 4 je suis teinte en bleu ; pad 42 = points de passage
+       (set! (-> *online-shm* local pad 37)
+             (the-as uint (logior (if (focus-test? *target* pilot) 1 0)
+                                  (if (handle->process (-> *ow-maps* hide-npc)) 2 0)
+                                  (if (-> *ow-maps* tinted) 4 0))))
+       (set! (-> *online-shm* local pad 38) (the-as uint (-> *ow-maps* race-next)))
+       )
+      ((= arg 645)
+       (let ((boats 0))
+         (dotimes (s OWM_MAX_PLATS)
+           (let ((p (the-as ow-plat (handle->process (-> *ow-maps* plats s)))))
+             (if (and p (= (-> p kind) OWM_BOAT))
+                 (+! boats 1)
+                 )
+             )
+           )
+         (set! (-> *online-shm* local pad 38)
+               (the-as uint (logior (if (ow-dans-l-eau?) 1 0) (if (> boats 0) 2 0) (if (>= (-> *ow-maps* mail-k) 0) 4 0)))
+               )
+         )
+       )
+      )
+    )
+  (none)
+  )
+
+(defun ow-mer-test! ((arg int))
+  "banc de test : 579 = au large (dans la mer du village), 580 = pad 36 : 1 nage, 2 requin"
+  (case arg
+    ((579)
+     (when *target*
+       (let ((p (new 'stack-no-clear 'vector)))
+         (set-vector! p (meters -2450.0) (meters 62.0) (meters 1600.0) 1.0)
+         (move-to-point! (-> *target* control) p)
+         )
+       )
+     )
+    ((580)
+     (if *target*
+         (format 0 "[jak3-online] mer : carte ~D  mer ~M  jak y ~M  eau flags #x~X  hauteur ~M~%"
+                 (ow-map-current) *online-sea-y* (-> *target* control trans y)
+                 (-> *target* water flags) (-> *target* water height))
+         )
+     (set! (-> *online-shm* local pad 36)
+           (the-as uint (logior (if (ow-dans-l-eau?) 1 0) (if (handle->process (-> *ow-mer* requin)) 2 0)))
+           )
+     )
+    )
+  (none)
+  )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; CACHE-CACHE (manoir) : un personnage ROUGE (Keira) est cache a l'une des 10 cachettes (tiree au
+;; sort par l'autorite, la meme pour tous) ; tout le monde est BLEU ; le premier qui le touche gagne.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; cachettes (metres, par rapport au centre du manoir 1500 100 -3000)
+(define *ow-hide-spots* (new 'static 'array float 30
+  -42.5 0.2 -27.5   44.0 0.2 14.5   -15.0 5.45 22.0   6.0 10.45 19.5   0.0 0.1 -17.0
+  -55.0 0.1 30.0    6.0 0.45 2.4    55.0 0.1 -40.0    -14.0 0.45 17.5  16.0 0.45 21.5))
+
+(deftype ow-cache (process-drawable)
+  ((t0   time-frame)
+   (base vector :inline)
+   )
+  (:states
+    ow-cache-idle
+    )
+  )
+
+(defstate ow-cache-idle (ow-cache)
+  :code (behavior ()
+    (until #f
+      ;; il se balance doucement (on le repere a son mouvement)
+      (let ((t (* (/ 1.0 300.0) (the float (- (current-time) (-> self t0))))))
+        (vector-copy! (-> self root trans) (-> self base))
+        (+! (-> self root trans y) (* (meters 0.12) (sin (* 65536.0 (* 0.5 t)))))
+        (quaternion-axis-angle! (-> self root quat) 0.0 1.0 0.0 (* 16384.0 (sin (* 65536.0 (* 0.15 t)))))
+        (set-vector! (-> self draw color-mult) 2.2 0.35 0.3 1.0)
+        (set-vector! (-> self draw color-emissive) 0.35 0.0 0.0 1.0)
+        )
+      (suspend)
+      )
+    #f
+    )
+  :post ja-post
+  )
+
+(defbehavior ow-cache-init-by-other ow-cache ((pos vector))
+  (set! (-> self root) (new 'process 'trsqv))
+  (vector-copy! (-> self root trans) pos)
+  (vector-copy! (-> self base) pos)
+  (quaternion-identity! (-> self root quat))
+  (vector-identity! (-> self root scale))
+  (set-time! (-> self t0))
+  (initialize-skeleton self (the-as skeleton-group *ow-keira-sg*) (the-as pair 0))
+  (ow-perso-draw-level! (-> self draw) #t)
+  (logclear! (-> self mask) (process-mask actor-pause))
+  (go ow-cache-idle)
+  )
+
+(defun ow-tint-players! ((r float) (g float) (b float))
+  "teinte mon Jak et les autres joueurs (cache-cache : tout le monde en bleu)"
+  (if *target*
+      (set-vector! (-> *target* draw color-mult) r g b 1.0)
+      )
+  (dotimes (i ONLINE_MAX_PUPPETS)
+    (let ((p (online-puppet-proc i)))
+      (when p
+        (set-vector! (-> p draw color-mult) r g b 1.0)
+        (dotimes (k ONLINE_PART_SLOTS)
+          (let ((part (the-as process-drawable (handle->process (-> p parts k)))))
+            (if (and part (nonzero? (-> part draw)))
+                (set-vector! (-> part draw color-mult) r g b 1.0)
+                )
+            )
+          )
+        )
+      )
+    )
+  (none)
+  )
+
+(defun ow-hide-tick! ((i int))
+  (let* ((m *ow-maps*)
+         (ext *online-ext*)
+         (t *target*)
+         (on (and t (= i OW_MAP_HIDE) (ow-map-event? i) (= (-> ext ev-kind) ONLINE_EVK_HIDE)))
+         )
+    (cond
+      (on
+        ;; tout le monde en bleu
+        (ow-tint-players! 0.45 0.65 1.9)
+        (set! (-> m tinted) #t)
+        ;; le personnage rouge a sa cachette
+        (let ((k (* 3 (mod (the-as int (-> ext ev-target)) 10))))
+          (when (and (not (handle->process (-> m hide-npc))) (nonzero? *ow-keira-sg*))
+            (let ((p (new 'stack-no-clear 'vector)))
+              (set-vector! p (meters (+ 1500.0 (-> *ow-hide-spots* k))) (meters (+ 100.0 (-> *ow-hide-spots* (+ k 1))))
+                           (meters (+ -3000.0 (-> *ow-hide-spots* (+ k 2)))) 1.0)
+              (let ((pp (process-spawn ow-cache p :name "ow-cache" :to *entity-pool*)))
+                (if pp
+                    (set! (-> m hide-npc) (ppointer->handle pp))
+                    )
+                )
+              )
+            )
+          ;; trouve !
+          (let ((npc (the-as process-drawable (handle->process (-> m hide-npc)))))
+            (when (and npc (!= (-> m hide-found) (-> ext ev-id)) (not (focus-test? t dead))
+                       (< (vector-vector-distance (-> t control trans) (-> npc root trans)) (meters 2.0)))
+              (set! (-> m hide-found) (-> ext ev-id))
+              (set! (-> m finished) #t)
+              (set! (-> m finish-sent) (-> ext ev-id))
+              (online-push-out-event! ONLINE_EVENT_EVENT (the-as uint 0) 0.0 5 (-> t control trans))
+              (sound-play "skill-pickup")
+              (ow-hint! (online-fr "TROUVE !" "FOUND!"))
+              )
+            )
+          )
+        )
+      (else
+        (let ((npc (handle->process (-> m hide-npc))))
+          (if npc
+              (deactivate npc)
+              )
+          )
+        (set! (-> m hide-npc) (the-as handle #f))
+        (when (-> m tinted)
+          (set! (-> m tinted) #f)
+          (ow-tint-players! 1.0 1.0 1.0)
+          )
+        )
+      )
+    )
+  (none)
+  )
+
 (defun ow-maps-tick! ()
+  (ow-veh-rules-tick!)
+  (if (!= (ow-map-current) OW_MAP_CIRCUIT)
+      (if (handle->process (-> *ow-maps* turbos 0))
+          (ow-turbos-clear!)
+          )
+      )
+  (ow-mer-tick! (ow-map-current))
+  (ow-hide-tick! (ow-map-current))
   (let ((i (ow-map-current))
         (m *ow-maps*)
         (ext *online-ext*)
@@ -777,22 +1639,23 @@
            (ow-map-tick-inside! i)
            )
        )
-      (else
-        (if (>= (-> m plat-map) 0)
-            (ow-map-clear-plats!)
-            )
-        ;; depart automatique (ROND pendant le compte a rebours : je ne participe pas)
-        (let ((cd (ow-map-countdown)))
-          (when (<= 0.0 cd)
-            (cond
-              ((cpad-pressed? 0 circle)
-               (set! (-> m declined) (-> ext ev-id))
-               (ow-hint! (online-fr "Tu ne participes pas (menu SELECT > EVENEMENTS pour rejoindre)" "You are not taking part (SELECT menu > EVENTS to join)"))
-               )
-              ((and (<= cd 0.0) *target* (not (movie?)) (not (focus-test? *target* dead)) (not *progress-process*))
-               (ow-map-join!)
-               )
-              )
+      ((>= (-> m plat-map) 0)
+       (ow-map-clear-plats!)
+       )
+      )
+    ;; depart automatique (ROND pendant le compte a rebours : je ne participe pas), aussi depuis
+    ;; une maison (cartes OW_PARKOUR_COUNT et suivantes)
+    (when (or (< i 0) (>= i OW_PARKOUR_COUNT))
+      (let ((cd (ow-map-countdown)))
+        (when (<= 0.0 cd)
+          (cond
+            ((cpad-pressed? 0 circle)
+             (set! (-> m declined) (-> ext ev-id))
+             (ow-hint! (online-fr "Tu ne participes pas (menu SELECT / EVENEMENTS pour rejoindre)" "You are not taking part (SELECT menu / EVENTS to join)"))
+             )
+            ((and (<= cd 0.0) *target* (not (movie?)) (not (focus-test? *target* dead)) (not *progress-process*))
+             (ow-map-join!)
+             )
             )
           )
         )
@@ -811,11 +1674,36 @@
          )
     (cond
       ((<= 0.0 cd)
-       (format (clear s) (online-fr "PARCOURS : ~S  -  depart dans ~D s" "PARKOUR: ~S  -  starting in ~D s") (ow-map-name i) (+ 1 (the int cd)))
+       (format (clear s) (case (the-as int (-> ext ev-kind))
+                           ((ONLINE_EVK_KART) (online-fr "COURSE AUTO : ~S  -  depart dans ~D s" "CAR RACE: ~S  -  starting in ~D s"))
+                           ((ONLINE_EVK_HIDE) (online-fr "CACHE-CACHE : ~S  -  depart dans ~D s" "HIDE AND SEEK: ~S  -  starting in ~D s"))
+                           (else (online-fr "PARCOURS : ~S  -  depart dans ~D s" "PARKOUR: ~S  -  starting in ~D s"))
+                           )
+               (ow-map-name i) (+ 1 (the int cd)))
        (ow-text-mid s y 0.42 (font-color flat-yellow))
-       (format (clear s) (online-fr "le premier en haut gagne ~D orbes  -  ROND : ne pas participer" "first to the top wins ~D orbs  -  CIRCLE: do not take part")
-               (-> *ow-map-reward* (max 0 (min i (+ OW_MAP_COUNT -1)))))
+       (format (clear s) (case (the-as int (-> ext ev-kind))
+                           ((ONLINE_EVK_KART) (online-fr "un tour, un vehicule pour chacun : le premier gagne ~D orbes  -  ROND : ne pas participer" "one lap, a car for everyone: the first wins ~D orbs  -  CIRCLE: do not take part"))
+                           ((ONLINE_EVK_HIDE) (online-fr "trouve le personnage ROUGE : ~D orbes  -  ROND : ne pas participer" "find the RED character: ~D orbs  -  CIRCLE: do not take part"))
+                           (else (online-fr "le premier en haut gagne ~D orbes  -  ROND : ne pas participer" "first to the top wins ~D orbs  -  CIRCLE: do not take part"))
+                           )
+               (if (= (-> ext ev-kind) ONLINE_EVK_HIDE) 2500 (-> *ow-map-reward* (max 0 (min i (+ OW_MAP_COUNT -1))))))
        (ow-text-mid s (+ y 14.0) 0.3 (font-color white))
+       )
+      ((and (= (ow-map-current) i) (= (-> ext ev-kind) ONLINE_EVK_KART))
+       (format (clear s) (online-fr "COURSE AUTO  -  points de passage ~D / ~D  -  ~S" "CAR RACE  -  checkpoints ~D / ~D  -  ~S")
+               (-> *ow-maps* race-next) (ow-map-count-elem i OWM_CHECK) (oe-time-text (-> *online-world* str3) (-> ext ev-timer)))
+       (ow-text-mid s y 0.42 (font-color flat-yellow))
+       (ow-text-mid (if (-> m finished) (online-fr "ARRIVE !  en attente du resultat..." "FINISHED!  waiting for the result...")
+                        (online-fr "fonce ! les fleches bleues au sol = TURBO" "go! blue arrows on the ground = BOOST"))
+                    (+ y 14.0) 0.3 (font-color white))
+       )
+      ((and (= (ow-map-current) i) (= (-> ext ev-kind) ONLINE_EVK_HIDE))
+       (format (clear s) (online-fr "CACHE-CACHE  -  trouve le personnage ROUGE !  -  ~S" "HIDE AND SEEK  -  find the RED character!  -  ~S")
+               (oe-time-text (-> *online-world* str3) (-> ext ev-timer)))
+       (ow-text-mid s y 0.42 (font-color red))
+       (ow-text-mid (if (-> m finished) (online-fr "TROUVE !  en attente du resultat..." "FOUND!  waiting for the result...")
+                        (online-fr "il se cache dans le manoir ou le jardin : touche-le le premier (2500 orbes)" "hidden in the manor or the garden: touch it first (2500 orbs)"))
+                    (+ y 14.0) 0.3 (font-color white))
        )
       ((= (ow-map-current) i)
        (format (clear s) (online-fr "PARCOURS : ~S  -  difficulte ~D/5  -  ~S" "PARKOUR: ~S  -  difficulty ~D/5  -  ~S")
@@ -833,7 +1721,7 @@
         (format (clear s) (online-fr "PARCOURS EN COURS : ~S  -  ~S" "PARKOUR RUNNING: ~S  -  ~S") (ow-map-name i)
                 (oe-time-text (-> *online-world* str3) (-> ext ev-timer)))
         (ow-text-mid s y 0.4 (font-color flat-yellow))
-        (ow-text-mid (online-fr "menu SELECT > EVENEMENTS : rejoindre" "SELECT menu > EVENTS: join") (+ y 14.0) 0.3 (font-color white))
+        (ow-text-mid (online-fr "menu SELECT / EVENEMENTS : rejoindre" "SELECT menu / EVENTS: join") (+ y 14.0) 0.3 (font-color white))
         )
       )
     )
@@ -884,8 +1772,12 @@
        )
      )
     ((= arg 442)
-     (let ((i (ow-map-current)))
-       (if (>= i 0) (ow-map-test-goto-elem! (ow-map-find-elem i OWM_PAD 0) (meters 0.3)))
+     ;; sur le premier tremplin (banc de test : pad 25 = 1 si la carte en a un)
+     (let* ((i (ow-map-current))
+            (k (if (>= i 0) (ow-map-find-elem i OWM_PAD 0) -1))
+            )
+       (set! (-> *online-shm* local pad 25) (the-as uint (if (>= k 0) 1 0)))
+       (if (>= k 0) (ow-map-test-goto-elem! k (meters 0.3)))
        )
      )
     ((= arg 443)
@@ -898,11 +1790,12 @@
        (if (>= i 0) (ow-map-test-goto-elem! (ow-map-find-elem i OWM_FINISH 0) (meters 0.5)))
        )
      )
-    ((and (>= arg 400) (< arg (+ 400 OW_MAP_COUNT)))
-     (ow-map-goto! (- arg 400))
-     )
     ((= arg 410)
      (ow-map-leave!)
+     )
+    ((and (>= arg 400) (< arg 410) (< arg (+ 400 OW_MAP_COUNT)))
+     ;; (les maisons, cartes 8 a 10 : commandes 540 et suivantes)
+     (ow-map-goto! (- arg 400))
      )
     ((and (>= arg 420) (< arg 440))
      ;; (au-dessus de l'element, pour atterrir sur les plateformes)

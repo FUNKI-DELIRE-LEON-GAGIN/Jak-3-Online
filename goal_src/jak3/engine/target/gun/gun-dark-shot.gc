@@ -3594,6 +3594,9 @@
   )
 
 (defbehavior target-gun-fire-dark target ((arg0 pickup-type))
+  (if *ow-shot-hook*
+      (*ow-shot-hook* (the-as int arg0))
+      )
   ;; jak 3 en ligne : tirs contre les joueurs distants
   (online-pvp-gun-fire! self arg0)
   (case arg0

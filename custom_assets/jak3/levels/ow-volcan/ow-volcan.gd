@@ -2,5 +2,6 @@
 ("OVL.DGO"
  (
   "ow-plat-ag.go"
+  "ow-bateau-ag.go"
   "ow-volcan.go"
   ))

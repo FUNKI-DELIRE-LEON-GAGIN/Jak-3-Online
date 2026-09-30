@@ -563,6 +563,22 @@
                )
              )
            )
+          (('ow-seat-car 'ow-seat-bike)
+           ;; jak 3 en ligne : passager assis dans le vehicule d'un autre joueur (a cote / derriere),
+           ;; avec la pose de pilote du jeu (voiture ou moto, volant au milieu)
+           (ja-channel-push! 1 (seconds 0.15))
+           (until #f
+             (if (= gp-2 'ow-seat-bike)
+                 (ja :group! jakb-pilot-bike-turn-back-ja :num-func num-func-identity :frame-num (ja-aframe 5.0 0))
+                 (ja :group! jakb-pilot-car-turn-back-ja :num-func num-func-identity :frame-num (ja-aframe 5.0 0))
+                 )
+             (if (!= gp-2 (-> self control unknown-spool-anim00))
+                 (goto cfg-131)
+                 )
+             (suspend)
+             )
+           #f
+           )
           (('shock-in)
            (ja-channel-push! 1 (seconds 0.2))
            (ja-no-eval :group! jakb-shocked-ja :num! (seek! (ja-aframe 15.0 0)) :frame-num 0.0)

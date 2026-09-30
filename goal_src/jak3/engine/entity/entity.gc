@@ -2385,7 +2385,15 @@
   )
 
 ;; WARN: Return type mismatch int vs entity-perm-status.
+;; JAK 3 EN LIGNE : coop en session privee. online-world.gc remplit ce crochet :
+;; (sorte aid process) avec 1 = objet de la carte fini (ramasse, casse...), 2 = ennemi tue,
+;; 3 = etape de mission validee (aid = numero de l'etape)
+(define *ow-coop-hook* (the-as (function int uint process none) #f))
+
 (defun process-entity-status! ((arg0 process) (arg1 entity-perm-status) (arg2 symbol))
+  (if (and *ow-coop-hook* arg2 (logtest? arg1 (entity-perm-status dead)) (-> arg0 entity) (= arg0 (-> arg0 entity extra process)))
+      (*ow-coop-hook* 1 (-> arg0 entity aid) arg0)
+      )
   (the-as entity-perm-status (cond
                                ((and (-> arg0 entity) arg0 (= arg0 (-> arg0 entity extra process)))
                                 (let ((v1-6 (-> arg0 entity extra)))

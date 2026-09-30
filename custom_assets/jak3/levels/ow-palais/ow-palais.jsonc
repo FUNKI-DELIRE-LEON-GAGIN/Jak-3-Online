@@ -1,0 +1,16 @@
+// JAK 3 EN LIGNE : carte "Palais de l'ile" (fabriquee par build_maps.py)
+{
+  "long_name": "ow-palais",
+  "iso_name": "OWPALAIS",
+  "nickname": "opl",
+  "gltf_file": "custom_assets/jak3/levels/ow-palais/ow-palais.glb",
+  "automatic_wall_detection": true,
+  "automatic_wall_angle": 45.0,
+  "double_sided_collide": false,
+  "base_id": 1450,
+  "custom_models": [
+    "ow-plat",
+    "ow-bateau"
+  ],
+  "actors": []
+}

@@ -2788,7 +2788,11 @@
   :event target-generic-event-handler
   :enter (behavior ((arg0 int))
     (logior! (-> self target-flags) (target-flags tf4))
-    (set-setting! 'process-mask 'set 0.0 (process-mask enemy platform projectile guard vehicle))
+    ;; jak 3 en ligne : en session, le soin de Light Jak ne fige plus le monde (ennemis, vehicules,
+    ;; projectiles des autres...) : c'etait un arret du temps pour ce joueur seulement
+    (if (not *online-no-pause*)
+        (set-setting! 'process-mask 'set 0.0 (process-mask enemy platform projectile guard vehicle))
+        )
     (set! (-> self control unknown-handle02) (the-as handle #f))
     (set-time! (-> self lightjak regen-start-time))
     (set! (-> self lightjak get-off-lock) #t)

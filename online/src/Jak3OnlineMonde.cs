@@ -301,9 +301,18 @@ namespace Jak3Online
     // ------------------------------------------------------------------------
     static class Catalog
     {
-        public const int KIND_FEATURE = 1, KIND_SECRET = 2, KIND_VEHICLE = 3, KIND_ITEM = 4, KIND_CONSUMABLE = 5, KIND_POWER = 6;
-        public const int Count = 96;
+        public const int KIND_FEATURE = 1, KIND_SECRET = 2, KIND_VEHICLE = 3, KIND_ITEM = 4, KIND_CONSUMABLE = 5, KIND_POWER = 6, KIND_COSM = 7;
+        public const int Count = 128;
+        // MAISONS (numero 0..7 = cartes 8..15 du jeu) : objet, boites aux lettres, orbes par boite et par jour
+        public static readonly int[] HouseItem = { 96, 97, 98, 109, 110, 111, 112, 113 };
+        public static readonly int[] HouseBoxes = { 1, 2, 3, 2, 4, 5, 7, 10 };
+        public static readonly int[] HouseMailPerDay = { 150, 250, 300, 250, 450, 600, 800, 1000 };
+        public const int MailDaysMax = 3;   // le courrier s'accumule au plus 3 jours
         public const int FirstPower = 64, PowerCount = 8;
+        // 1.3 : ACCESSOIRES (objets 114..127, bits 0..13 de Cosm) : emplacement (0 tete, 1 visage, 2 dos) et numero
+        public const int FirstCosm = 114, CosmCount = 14;
+        public static readonly int[] CosmSlot = { 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2 };
+        public static readonly int[] CosmIndex = { 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 1, 2, 3, 4 };
 
         public class Item
         {
@@ -407,13 +416,52 @@ namespace Jak3Online
             Add(73, "Caisse de munitions au sol", KIND_CONSUMABLE, 5, 40, -1, 1);
             Add(74, "ECO BLEU (3 min)", KIND_CONSUMABLE, 6, 150, -1, 3);
             // PERSONNAGES jouables (corps sur le squelette de Jak, voir online.gc) : Jak est gratuit
-            Add(75, "Keira", KIND_ITEM, 8, 800, -1, 3);
+            Add(75, "Keira", KIND_ITEM, 8, 1500, -1, 3);
             // PERSONNAGES (objets a nous, bits 9-13)
-            Add(54, "Jak 2", KIND_ITEM, 9, 600, -1, 3);
-            Add(55, "Jak 1 HD", KIND_ITEM, 10, 700, -1, 3);
-            Add(56, "Jak 4", KIND_ITEM, 11, 1200, -1, 5);
-            Add(57, "Tess", KIND_ITEM, 12, 800, -1, 3);
-            Add(58, "Daxter", KIND_ITEM, 13, 150, -1, 1);
+            Add(54, "Jak 2", KIND_ITEM, 9, 1200, -1, 3);
+            Add(55, "Jak 1 HD", KIND_ITEM, 10, 1000, -1, 3);
+            Add(56, "Jak 4", KIND_ITEM, 11, 3000, -1, 8);
+            Add(57, "Tess", KIND_ITEM, 12, 1500, -1, 3);
+            Add(58, "Daxter", KIND_ITEM, 13, 500, -1, 1);
+            // 1.3 : personnages de Jak 3 (bits 23..26)
+            Add(105, "Ashelin", KIND_ITEM, 23, 2500, -1, 8);
+            Add(106, "Torn", KIND_ITEM, 24, 2500, -1, 8);
+            Add(107, "Sig", KIND_ITEM, 25, 4000, -1, 12);
+            Add(108, "Samos", KIND_ITEM, 26, 5000, -1, 15);
+            // MAISONS (bits 14-16) et STYLE (bits 17-21)
+            // (1.3 : prix revus d'apres ce qu'on gagne en jouant : ~5 000 a 10 000 orbes par heure)
+            Add(96, "Maison : cabane dans les bois", KIND_ITEM, 14, 3000, -1, 3);
+            Add(97, "Maison : villa au bord de l'eau", KIND_ITEM, 15, 12000, -1, 6);
+            Add(98, "Maison : chateau", KIND_ITEM, 16, 30000, -1, 10);
+            // 1.3 : nouvelles maisons (bits 27..31), la plus belle a 1 000 000
+            Add(109, "Maison : maison en cubes", KIND_ITEM, 27, 20000, -1, 8);
+            Add(110, "Maison : manoir", KIND_ITEM, 28, 75000, -1, 14);
+            Add(111, "Maison : penthouse du gratte-ciel", KIND_ITEM, 29, 150000, -1, 18);
+            Add(112, "Maison : temple precurseur", KIND_ITEM, 30, 350000, -1, 22);
+            Add(113, "Maison : PALAIS DE L'ILE", KIND_ITEM, 31, 1000000, -1, 25);
+            Add(99, "Grosse tete", KIND_ITEM, 17, 400, -1, 2);
+            Add(100, "Petite tete", KIND_ITEM, 18, 400, -1, 2);
+            Add(101, "Pantalon pour Daxter", KIND_ITEM, 19, 300, -1, 1).Hidden = true;   // le jeu ne l'affiche que dans ses cinematiques
+            Add(102, "Monde miroir", KIND_ITEM, 20, 250, -1, 1);
+            Add(103, "Sans barbe (Jak)", KIND_ITEM, 21, 200, -1, 1);
+            // VEHICULE VOLANT : le Hellcat (h-warf, repris du mod Jak 4), a appeler partout
+            Add(104, "HELLCAT (vole partout)", KIND_ITEM, 22, 12000, -1, 12);
+            // ACCESSOIRES (1.3) : portes sur ton personnage, TOUS les joueurs les voient ; certains
+            // sont reserves aux hauts niveaux
+            Add(114, "Casquette", KIND_COSM, 0, 1500, -1, 2);
+            Add(115, "Chapeau de cowboy", KIND_COSM, 1, 4000, -1, 5);
+            Add(116, "Haut-de-forme", KIND_COSM, 2, 8000, -1, 8);
+            Add(117, "Casque de guerrier", KIND_COSM, 3, 20000, -1, 15);
+            Add(118, "Cornes de demon", KIND_COSM, 4, 30000, -1, 20);
+            Add(119, "Couronne d'or", KIND_COSM, 5, 100000, -1, 30);
+            Add(120, "Aureole", KIND_COSM, 6, 250000, -1, 50);
+            Add(121, "Lunettes de soleil", KIND_COSM, 7, 2000, -1, 3);
+            Add(122, "Masque de ninja", KIND_COSM, 8, 6000, -1, 6);
+            Add(123, "Masque de fer", KIND_COSM, 9, 25000, -1, 18);
+            Add(124, "Sac a dos", KIND_COSM, 10, 3000, -1, 3);
+            Add(125, "Cape rouge", KIND_COSM, 11, 12000, -1, 10);
+            Add(126, "Ailes d'ange", KIND_COSM, 12, 150000, -1, 40);
+            Add(127, "Ailes de demon", KIND_COSM, 13, 300000, -1, 60);
             // AMELIORATIONS (secrets du jeu, seulement ceux-ci : pas de triche)
             Add(76, "Capacite munitions jaunes", KIND_SECRET, 55, 300, -1, 3);
             Add(77, "Capacite munitions rouges", KIND_SECRET, 54, 300, -1, 3);
@@ -424,9 +472,12 @@ namespace Jak3Online
             // TELEPORTATION (consommables : mode 10 + lieu, memes lieux que les courses)
             string[] tp = { "le Naughty Ottsel", "le port de Haven", "le bidonville", "le QG de la resistance", "le centre de Haven", "la zone industrielle",
                 "les portes de Spargus", "le corral aux lezards", "l'entree du nid", "le desert (A)", "le desert (D)", "le desert (G)" };
-            for (int i = 0; i < tp.Length; i++) Add(82 + i, tp[i], KIND_CONSUMABLE, 10 + i, i < 6 ? 30 : 60, -1, 1);
+            // le Naughty Ottsel (le point d'arrivee du monde) : gratuit
+            for (int i = 0; i < tp.Length; i++) Add(82 + i, tp[i], KIND_CONSUMABLE, 10 + i, i == 0 ? 0 : i < 6 ? 30 : 60, -1, 1);
         }
 
+        // achat a distance (hors du Naughty Ottsel) des objets de sa boutique : +50 % (comme le jeu)
+        public static int PriceFor(int id, bool far) { int p = Price(id); return far && id >= 0 && id <= 42 ? p * 3 / 2 : p; }
         public static int Price(int id) { return id >= 0 && id < Catalog.Count && Items[id] != null && !Items[id].Hidden ? Items[id].Price : 0; }
         public static int ReqLevel(int id) { return id >= 0 && id < Catalog.Count && Items[id] != null ? (Items[id].Hidden ? 255 : Items[id].Level) : 255; }
     }
@@ -465,6 +516,9 @@ namespace Jak3Online
         public readonly long[] PowerUntil = new long[Catalog.PowerCount];
         public int BestStreak, VehKills, BossKills, EventsWon;
         public int Perso;              // v5 : personnage joue (0 = Jak)
+        public ulong Cosm;             // v7 : accessoires achetes (bits 0..13 = objets 114..127)
+        public int Wear;               // v7 : accessoires portes (octet 0 tete, 1 visage, 2 dos : numero, 0 = rien)
+        public readonly long[] MailLast = new long[8 * 16];   // v6 : derniere releve de chaque boite aux lettres (ms)
         public long TotalEarned;
         public int XpMul = 1;          // Double XP (pouvoir ou evenement) : fixe par Client
         public readonly Dictionary<int, long> TaskReward = new Dictionary<int, long>();
@@ -509,7 +563,7 @@ namespace Jak3Online
         {
             MemoryStream ms = new MemoryStream();
             BinaryWriter w = new BinaryWriter(ms);
-            w.Write((int)5);
+            w.Write((int)7);
             w.Write(Money); w.Write(Xp); w.Write(Features); w.Write(Secrets); w.Write(Vehicles); w.Write(Items);
             w.Write(Kills); w.Write(Deaths); w.Write(Missions); w.Write(Races); w.Write(Bounties);
             w.Write(LastDaily); w.Write(BannedUntil);
@@ -524,6 +578,11 @@ namespace Jak3Online
             foreach (long t in PowerUntil) w.Write(t);
             w.Write(BestStreak); w.Write(VehKills); w.Write(BossKills); w.Write(EventsWon); w.Write(TotalEarned);
             w.Write(Perso);
+            // v6
+            w.Write(MailLast.Length);
+            foreach (long t in MailLast) w.Write(t);
+            // v7
+            w.Write(Cosm); w.Write(Wear);
             w.Flush();
             byte[] body = ms.ToArray();
             byte[] mac;
@@ -547,7 +606,7 @@ namespace Jak3Online
             {
                 BinaryReader r = new BinaryReader(new MemoryStream(body));
                 int ver = r.ReadInt32();
-                if (ver < 3 || ver > 5) return;
+                if (ver < 3 || ver > 7) return;
                 Money = r.ReadInt64(); Xp = r.ReadInt64(); Features = r.ReadUInt64(); Secrets = r.ReadUInt64();
                 Vehicles = r.ReadUInt32(); Items = r.ReadUInt32();
                 Kills = r.ReadInt32(); Deaths = r.ReadInt32(); Missions = r.ReadInt32(); Races = r.ReadInt32(); Bounties = r.ReadInt32();
@@ -566,6 +625,12 @@ namespace Jak3Online
                     TotalEarned = r.ReadInt64();
                 }
                 if (ver >= 5) Perso = r.ReadInt32();
+                if (ver >= 6)
+                {
+                    n = r.ReadInt32();
+                    for (int i = 0; i < n; i++) { long t = r.ReadInt64(); if (i < MailLast.Length) MailLast[i] = t; }
+                }
+                if (ver >= 7) { Cosm = r.ReadUInt64(); Wear = r.ReadInt32(); }
             }
             catch (Exception) { }
             // valeurs impossibles : on borne
@@ -626,13 +691,14 @@ namespace Jak3Online
                     case Catalog.KIND_SECRET: return (Secrets & (1UL << it.Bit)) != 0;
                     case Catalog.KIND_VEHICLE: return (Vehicles & (1u << it.Bit)) != 0;
                     case Catalog.KIND_ITEM: return (Items & (1u << it.Bit)) != 0;
+                    case Catalog.KIND_COSM: return (Cosm & (1UL << it.Bit)) != 0;
                 }
             }
             return false;
         }
 
         // 0 ok, 1 inconnu, 2 deja achete, 3 il faut d'abord l'objet requis, 4 pas assez d'orbes, 5 niveau trop bas
-        public int Buy(int id)
+        public int Buy(int id, bool far = false)
         {
             Catalog.Item it = id >= 0 && id < Catalog.Count ? Catalog.Items[id] : null;
             if (it == null || it.Hidden) return 1;
@@ -641,14 +707,23 @@ namespace Jak3Online
             if (Level < it.Level) return 5;
             lock (lk)
             {
-                if (Money < it.Price) return 4;
-                Money -= it.Price;
+                int price = Catalog.PriceFor(id, far);
+                if (Money < price) return 4;
+                Money -= price;
                 switch (it.Kind)
                 {
                     case Catalog.KIND_FEATURE: Features |= 1UL << it.Bit; break;
                     case Catalog.KIND_SECRET: Secrets |= 1UL << it.Bit; break;
                     case Catalog.KIND_VEHICLE: Vehicles |= 1u << it.Bit; break;
                     case Catalog.KIND_ITEM: Items |= 1u << it.Bit; break;
+                    case Catalog.KIND_COSM:
+                        Cosm |= 1UL << it.Bit;
+                        // porte tout de suite (a la place de l'accessoire du meme emplacement)
+                        {
+                            int c = id - Catalog.FirstCosm, sh = Catalog.CosmSlot[c] * 8;
+                            Wear = (Wear & ~(0xff << sh)) | (Catalog.CosmIndex[c] << sh);
+                        }
+                        break;
                     case Catalog.KIND_POWER:
                         {
                             long now = NowMs();
@@ -664,8 +739,49 @@ namespace Jak3Online
             return 0;
         }
 
+        // BOITE AUX LETTRES : orbes accumules depuis la derniere releve (au plus 3 jours) ; la 1re
+        // releve d'une boite rapporte une journee. Renvoie ce qui a ete donne (0 : boite vide).
+        public long CollectMail(int house, int box)
+        {
+            if (house < 0 || house >= Catalog.HouseItem.Length || box < 0 || box >= Catalog.HouseBoxes[house]) return 0;
+            if (!Owns(Catalog.HouseItem[house])) return 0;
+            lock (lk)
+            {
+                long now = NowMs();
+                int slot = house * 16 + box;
+                long last = MailLast[slot];
+                const long day = 24L * 3600L * 1000L;
+                if (last <= 0 || last > now) last = now - day;
+                double days = Math.Min(Catalog.MailDaysMax, (now - last) / (double)day);
+                long give = (long)Math.Floor(days * Catalog.HouseMailPerDay[house]);
+                if (give < 1) return 0;
+                // on garde la fraction non versee (pas de perte en relevant souvent)
+                long used = (long)Math.Ceiling(give / (double)Catalog.HouseMailPerDay[house] * day);
+                MailLast[slot] = days >= Catalog.MailDaysMax ? now : Math.Min(now, last + used);
+                Money = Math.Min(9999999, Money + give);
+                Xp = Math.Min(999999999, Xp + give / 10);
+                TotalEarned += give;
+                dirty = true;
+                return give;
+            }
+        }
+
+        // courrier en attente dans une boite (orbes)
+        public long MailWaiting(int house, int box)
+        {
+            if (house < 0 || house >= Catalog.HouseItem.Length || box < 0 || box >= Catalog.HouseBoxes[house]) return 0;
+            lock (lk)
+            {
+                long now = NowMs();
+                long last = MailLast[house * 16 + box];
+                const long day = 24L * 3600L * 1000L;
+                if (last <= 0 || last > now) last = now - day;
+                return (long)Math.Floor(Math.Min(Catalog.MailDaysMax, (now - last) / (double)day) * Catalog.HouseMailPerDay[house]);
+            }
+        }
+
         // personnage joue : Jak (0) toujours, les autres s'ils sont achetes
-        public static readonly int[] PersoItem = { -1, 75, 54, 55, 56, 57, 58 };
+        public static readonly int[] PersoItem = { -1, 75, 54, 55, 56, 57, 58, 105, 106, 107, 108 };
         public bool SetPerso(int k)
         {
             if (k < 0 || k >= PersoItem.Length) return false;
@@ -673,6 +789,31 @@ namespace Jak3Online
             lock (lk) { Perso = k; dirty = true; }
             Save(true);
             return true;
+        }
+
+        // ACCESSOIRES portes : seulement des accessoires achetes (sinon : rien a cet emplacement)
+        public static int CosmItem(int slot, int index)
+        {
+            for (int c = 0; c < Catalog.CosmCount; c++)
+                if (Catalog.CosmSlot[c] == slot && Catalog.CosmIndex[c] == index) return Catalog.FirstCosm + c;
+            return -1;
+        }
+        public int WearChecked()
+        {
+            int w = 0;
+            for (int slot = 0; slot < 3; slot++)
+            {
+                int idx = (Wear >> (slot * 8)) & 0xff;
+                int it = CosmItem(slot, idx);
+                if (it >= 0 && Owns(it)) w |= idx << (slot * 8);
+            }
+            return w;
+        }
+        public void SetWear(int w)
+        {
+            lock (lk) { Wear = w & 0xffffff; dirty = true; }
+            Wear = WearChecked();
+            Save(true);
         }
 
         // secondes restantes d'un super-pouvoir
@@ -721,6 +862,10 @@ namespace Jak3Online
         public long GhostUntil;        // super-pouvoir Fantome : invisible sur les cartes
         public byte[] Fingerprint;     // empreinte de la version du mod (anti-triche)
         public bool BadVersion;        // version differente de la version officielle
+        public bool OldProto;          // ancienne version du mod (avant 1.2) : ignore
+        public bool Bot, BotOk;        // bot de test ; BotOk = ajoute par le createur
+        public bool OldNoted;
+        public uint HouseOwner;        // maison ou il est (proprietaire ; 0 = dehors)
         public int Strikes;            // anti-triche : comportements impossibles constates
         public DateTime StrikeWindow;
         public DateTime LastHitFrom;   // cadence des coups recus de ce joueur
@@ -737,26 +882,28 @@ namespace Jak3Online
     {
         // ---------------- messages de session (chat, identite, moderation...)
         public const byte MSG_HELLO = 1, MSG_CHAT = 2, MSG_ADMIN = 3, MSG_BANLIST = 4, MSG_KILL = 5,
-            MSG_BOUNTY = 6, MSG_RACE = 7, MSG_HELLO_REQ = 8, MSG_EVENT = 9, MSG_REPORT = 11, MSG_NOTE = 12, MSG_VERSION = 13;
+            MSG_BOUNTY = 6, MSG_RACE = 7, MSG_HELLO_REQ = 8, MSG_EVENT = 9, MSG_REPORT = 11, MSG_NOTE = 12, MSG_VERSION = 13, MSG_COOP = 14, MSG_SHOT = 15, MSG_HOUSE = 16, MSG_INVITE = 17, MSG_CLOCK = 18;
 
         // commandes de moderation (le jeu utilise les memes numeros, voir online-world.gc)
         public const int CMD_KICK = 1, CMD_BAN = 2, CMD_UNBAN = 3, CMD_MUTE = 4, CMD_UNMUTE = 5, CMD_FREEZE = 6,
             CMD_UNFREEZE = 7, CMD_BRING = 8, CMD_GOTO = 9, CMD_KILL = 10, CMD_HEAL = 11, CMD_GIVE = 12, CMD_TIME = 13,
             CMD_ANNOUNCE = 14, CMD_PVP = 15, CMD_HEAL_ALL = 16, CMD_BRING_ALL = 17, CMD_SLAP = 18, CMD_HOST = 19,
             CMD_GIVE_ITEM = 20, CMD_FREEZE_ALL = 21, CMD_UNFREEZE_ALL = 22, CMD_EVENT = 23, CMD_GIVE_VEHICLES = 24,
-            CMD_PUBLISH_VERSION = 25, CMD_BOUNTY = 26, CMD_RESET_ACTORS = 27, CMD_SET_LEVEL = 28, CMD_SET_MONEY = 29, CMD_IGNORE = 30;
+            CMD_PUBLISH_VERSION = 25, CMD_BOUNTY = 26, CMD_RESET_ACTORS = 27, CMD_SET_LEVEL = 28, CMD_SET_MONEY = 29, CMD_IGNORE = 30, CMD_DAYLOCK = 31, CMD_WEATHER = 32, CMD_DIALOG = 33;
 
         // evenements du jeu (online-world.gc)
         public const int EV_ORBS = 10, EV_ENEMY = 11, EV_TASK = 12, EV_BUY = 13, EV_ADMIN = 14, EV_RACE = 15, EV_CHEAT = 16,
-            EV_BOSS_DMG = 17, EV_EVENT = 18, EV_VEH_DEAD = 19;
+            EV_BOSS_DMG = 17, EV_EVENT = 18, EV_VEH_DEAD = 19, EV_MAIL = 28;
         // commandes envoyees au jeu (evenements entrants)
-        public const int EVIN_CMD = 20, EVIN_GRANT = 21;
+        public const int EVIN_CMD = 20, EVIN_GRANT = 21, EVIN_DIALOG = 29;
 
         Identity ident;
         Profil profil;
         public string ProfileDir = SafeStore.Dir();
         public bool Ephemeral;                  // bots : ni fichier, ni cle sur le disque
         public bool ForceCreateur;              // tests : ce client utilise la cle createur du PC
+        public bool IsBot;                      // bot de test (invisible dans le monde s'il n'est pas au createur)
+        public bool BotOfCreateur;              // bot ajoute par le createur (signe avec sa cle)
         readonly Dictionary<uint, MemberInfo> members = new Dictionary<uint, MemberInfo>();
         readonly List<ChatLine> chat = new List<ChatLine>();
         uint chatWrite;
@@ -791,7 +938,7 @@ namespace Jak3Online
         int levelBefore = -1;
 
         public Identity Ident { get { return ident; } }
-        public bool IsCreateur { get { return (ForceCreateur || !Ephemeral) && Createur.IsMe; } }
+        public bool IsCreateur { get { return (ForceCreateur || (!Ephemeral && !IsLocalJ2)) && Createur.IsMe; } }
         public bool InWorld { get { return SessionId != 0 && SessionCode.StartsWith(Proto.WorldPrefix); } }
         public bool CanModerate { get { return SessionId != 0 && (IsCreateur || (!InWorld && HostId == MyId)); } }
         public Profil Prof { get { return profil; } }
@@ -882,7 +1029,8 @@ namespace Jak3Online
             int level = profil.Level;
             long xp;
             lock (lk) xp = profil.Xp;
-            int flags = (InWorld ? 1 : 0) | (IsCreateur ? 2 : 0);
+            // 4 = version 1.2 ou plus ; 8 = bot de test ; 16 = bot du createur
+            int flags = (InWorld ? 1 : 0) | (IsCreateur ? 2 : 0) | 4 | (IsBot ? 8 : 0) | (IsBot && BotOfCreateur ? 16 : 0);
             byte[] body = Build(w =>
             {
                 w.Write((byte)1);
@@ -898,7 +1046,8 @@ namespace Jak3Online
             });
             byte[] sig = ident.Sign(Concat(BitConverter.GetBytes(MyId), Encoding.ASCII.GetBytes(SessionCode), body));
             // le createur prouve qui il est avec sa cle (sinon n'importe qui mettrait le drapeau)
-            byte[] csig = IsCreateur ? Createur.Sign(Concat(Encoding.ASCII.GetBytes("createur"), BitConverter.GetBytes(MyId), Encoding.ASCII.GetBytes(SessionCode), BitConverter.GetBytes(stamp))) : null;
+            byte[] csig = IsCreateur ? Createur.Sign(Concat(Encoding.ASCII.GetBytes("createur"), BitConverter.GetBytes(MyId), Encoding.ASCII.GetBytes(SessionCode), BitConverter.GetBytes(stamp)))
+                : (IsBot && BotOfCreateur && Createur.IsMe ? Createur.Sign(Concat(Encoding.ASCII.GetBytes("createurbot"), BitConverter.GetBytes(MyId), Encoding.ASCII.GetBytes(SessionCode), BitConverter.GetBytes(stamp))) : null);
             SendMsg(MSG_HELLO, target, Build(w =>
             {
                 w.Write(body);
@@ -916,12 +1065,56 @@ namespace Jak3Online
             return m;
         }
 
+        // ---------------- horloge du monde : meme heure chez tout le monde (et les nouveaux venus)
+        bool dayLock;
+        int weather;   // meteo du monde : 0 beau temps, 1 pluie, 2 orage, 3 neige (admin)
+        DateTime lastClockSend = DateTime.MinValue;
+
+        float MyGameHour()
+        {
+            // (lu dans l'image du jeu : etat local complet, pads compris)
+            byte[] g;
+            lock (lk) g = bridge != null ? bridge.Game : null;
+            if (g == null || g.Length <= Shm.Local + 88 + 31 || !GameAttached) return -1f;
+            return g[Shm.Local + 88 + 31] / 10f;
+        }
+
+        void ClockTick()
+        {
+            if (SessionId == 0 || !InWorld || EventAuthority() != MyId) return;
+            if ((DateTime.UtcNow - lastClockSend).TotalSeconds < 20) return;
+            float h = MyGameHour();
+            if (h < 0f) return;
+            lastClockSend = DateTime.UtcNow;
+            bool dl = dayLock;
+            int wt = weather;
+            SendMsg(MSG_CLOCK, 0, Build(w => { w.Write(h); w.Write((byte)(dl ? 1 : 0)); w.Write((byte)wt); }));
+        }
+
+        void OnWorldClock(float h, bool dl)
+        {
+            if (!InWorld || float.IsNaN(h) || h < 0f || h >= 24.5f) return;
+            dayLock = dl;
+            float mine = MyGameHour();
+            float diff = Math.Abs(mine - h);
+            diff = Math.Min(diff, 24f - diff);
+            if (mine < 0f || diff > 0.3f) { timeHour = Math.Min(23.99f, h); timeSeq++; }
+        }
+
+        // maisons : meme maison que moi (ou tous les deux dehors)
+        bool SameHouse(uint id)
+        {
+            lock (lk) { MemberInfo m; return (members.TryGetValue(id, out m) ? m.HouseOwner : 0u) == myHouseOwner; }
+        }
+
         bool IsIgnored(uint id)
         {
             lock (lk)
             {
                 MemberInfo m;
-                return members.TryGetValue(id, out m) && (m.Banned || (InWorld && m.BadVersion));
+                // ancienne version (avant 1.2) : ignoree partout ; bot d'un autre que le createur :
+                // ignore dans le monde en ligne (les bots de test sont reserves au createur)
+                return members.TryGetValue(id, out m) && (m.Banned || m.OldProto || (m.Bot && !m.BotOk) || (InWorld && m.BadVersion));
             }
         }
 
@@ -963,6 +1156,51 @@ namespace Jak3Online
                     case MSG_NOTE: OnNote(from, rest); break;
                     case MSG_REPORT: OnReport(from, rest); break;
                     case MSG_VERSION: OnVersionMsg(from, rest); break;
+                    case MSG_CLOCK:
+                        if (rest.Length >= 5 && from == EventAuthority())
+                        {
+                            OnWorldClock(BitConverter.ToSingle(rest, 0), rest[4] != 0);
+                            if (rest.Length >= 6 && InWorld && rest[5] <= 3) weather = rest[5];
+                        }
+                        break;
+                    case MSG_HOUSE:
+                        if (rest.Length >= 4)
+                            lock (lk) { MemberInfo hm; if (members.TryGetValue(from, out hm)) hm.HouseOwner = BitConverter.ToUInt32(rest, 0); }
+                        break;
+                    case MSG_INVITE:
+                        if (InWorld && rest.Length >= 1 && rest[0] <= 7)
+                        {
+                            bool ok;
+                            string inm = "?";
+                            lock (lk) { MemberInfo im; ok = members.TryGetValue(from, out im) && im.Verified && !im.Banned && !im.BadVersion; if (ok) inm = im.Name; }
+                            if (!ok || IsIgnored(from)) break;
+                            GameEvent e = new GameEvent();
+                            e.Kind = EV_INVITE; e.Player = from; e.Mode = rest[0];
+                            lock (lk) if (inEvents.Count < 64) inEvents.Enqueue(e);
+                            PushFeed(inm + T(" t'invite dans sa maison : SELECT / MOI pour accepter", " invites you to their house: SELECT / ME to accept"));
+                        }
+                        break;
+                    case MSG_SHOT:
+                        // tir d'un joueur d'une autre maison : on ne le voit pas
+                        if (rest.Length >= 13 && SameHouse(from))
+                        {
+                            GameEvent e = new GameEvent();
+                            e.Kind = EV_SHOT; e.Player = from; e.Mode = rest[0];
+                            e.Dx = BitConverter.ToSingle(rest, 1); e.Dy = BitConverter.ToSingle(rest, 5); e.Dz = BitConverter.ToSingle(rest, 9);
+                            lock (lk) if (inEvents.Count < 64) inEvents.Enqueue(e);
+                        }
+                        break;
+                    case MSG_COOP:
+                        bool coopOk = rest.Length >= 5 && (!InWorld || rest[0] != 3);
+                        if (coopOk && InWorld)
+                            lock (lk) { MemberInfo cm; coopOk = members.TryGetValue(from, out cm) && cm.Verified && !cm.Banned && !cm.BadVersion && !cm.Suspect; }
+                        if (coopOk)
+                        {
+                            GameEvent e = new GameEvent();
+                            e.Kind = EV_COOP; e.Mode = rest[0]; e.Player = BitConverter.ToUInt32(rest, 1);
+                            lock (lk) if (inEvents.Count < 64) inEvents.Enqueue(e);
+                        }
+                        break;
                 }
             }
             catch (Exception) { }
@@ -992,6 +1230,11 @@ namespace Jak3Online
             if (!Identity.Verify(pub, Concat(BitConverter.GetBytes(from), Encoding.ASCII.GetBytes(SessionCode), body), sig)) return;
             bool isCreateur = (flags & 2) != 0 && csig != null
                 && Createur.Verify(Concat(Encoding.ASCII.GetBytes("createur"), BitConverter.GetBytes(from), Encoding.ASCII.GetBytes(SessionCode), BitConverter.GetBytes(stamp)), csig);
+            // bot de test : seul un bot ajoute par le createur (signe avec sa cle) est accepte
+            bool isBot = (flags & 8) != 0;
+            bool botOk = isBot && (flags & 16) != 0 && csig != null
+                && Createur.Verify(Concat(Encoding.ASCII.GetBytes("createurbot"), BitConverter.GetBytes(from), Encoding.ASCII.GetBytes(SessionCode), BitConverter.GetBytes(stamp)), csig);
+            bool noteOld = false, noteBot = false;
             ulong uid = Identity.UidOf(pub);
             bool isNew;
             bool xpJump = false;
@@ -1003,10 +1246,18 @@ namespace Jak3Online
                 if (m.Verified && m.Uid != uid) return;   // un autre joueur essaie de prendre cet identifiant
                 m.Pub = pub;
                 m.Uid = uid;
-                m.Name = name;
+                m.Name = Proto.CleanName(name);
                 m.Level = Math.Max(1, Math.Min(999, level));
                 m.Xp = xp;
                 m.Flags = (flags & 1) | (isCreateur ? 2 : 0);
+                m.OldProto = (flags & 4) == 0;
+                m.Bot = isBot;
+                m.BotOk = botOk;
+                if (!m.OldNoted && (m.OldProto || (isBot && !botOk)))
+                {
+                    m.OldNoted = true;
+                    if (m.OldProto) noteOld = true; else noteBot = true;
+                }
                 m.Verified = true;
                 m.Seen = DateTime.UtcNow;
                 // anti-triche : progression impossible (plus de 15 000 points par minute) : une faute
@@ -1020,6 +1271,9 @@ namespace Jak3Online
                 if (fpr.Length == 32) NoteFingerprint(m, fpr);
             }
             if (xpJump) Strike(from, T("experience impossible", "impossible experience"));
+            if (noteOld) AddChat(3, "", name + T(" a une ancienne version du mod : ignore (mise a jour 1.2 requise)", " has an old mod version: ignored (update 1.2 required)"));
+            if (noteBot) AddChat(3, "", name + T(" : bot refuse (reserve au createur)", ": bot refused (creator only)"));
+            RefilterPlayers();
             if (isNew)
             {
                 SendHello(from);
@@ -1267,6 +1521,8 @@ namespace Jak3Online
                         if (fresh) SetMyLevelOrMoney(cmd, arg, T("le createur", "the creator"));
                     }
                     if (!me) AddChat(3, "", tn + (cmd == CMD_SET_LEVEL ? T(" : niveau ", ": level ") : T(" : orbes ", ": orbs ")) + arg + T(" (createur)", " (creator)"));
+                    if (!me && byCreateur)
+                        lock (lk) { MemberInfo sm; if (members.TryGetValue(target, out sm)) { sm.FirstXp = -1; sm.Strikes = 0; sm.Suspect = false; } }
                     break;
                 case CMD_GIVE_VEHICLES:
                     if (me && byCreateur && InWorld)
@@ -1299,7 +1555,30 @@ namespace Jak3Online
                 case CMD_TIME:
                     timeHour = Math.Max(0, Math.Min(23.99f, arg / 100f));
                     timeSeq++;
+                    dayLock = false;
                     AddChat(3, "", T("Heure du monde changee par ", "World time changed by ") + who);
+                    break;
+                case CMD_WEATHER:
+                    {
+                        weather = Math.Max(0, Math.Min(3, arg));
+                        string[] wn = { T("beau temps", "clear sky"), T("pluie", "rain"), T("orage", "storm"), T("neige", "snow") };
+                        AddChat(3, "", T("Meteo : ", "Weather: ") + wn[weather] + T(" (par ", " (by ") + who + ")");
+                        lastClockSend = DateTime.MinValue;   // les autres l'apprennent tout de suite
+                        break;
+                    }
+                case CMD_DIALOG:
+                    {
+                        // tout le monde entend la replique (dans la langue de son jeu)
+                        GameEvent e = new GameEvent();
+                        e.Kind = EVIN_DIALOG;
+                        e.Mode = Math.Max(0, arg);
+                        lock (lk) if (inEvents.Count < 64) inEvents.Enqueue(e);
+                        break;
+                    }
+                case CMD_DAYLOCK:
+                    dayLock = arg != 0;
+                    if (dayLock) { timeHour = 12f; timeSeq++; }
+                    AddChat(3, "", (dayLock ? T("Jour permanent active par ", "Always day enabled by ") : T("Jour permanent coupe par ", "Always day disabled by ")) + who);
                     break;
                 case CMD_ANNOUNCE:
                     lock (lk) { announce = text; announceKind = 0; announceSeq++; }
@@ -1926,6 +2205,7 @@ namespace Jak3Online
                     break;
                 case EV_TASK:
                     if (!InWorld || (uiFlags & 4) != 0 || selfCheat) break;
+                    OnMissionTaskDone((int)mode);
                     if (mode >= 73 && mode < 138 && profil.TaskRewardAllowed((int)mode, 20 * 60 * 1000L))
                     {
                         long got = profil.Gain("mission", 40, 200, 600000, 150);
@@ -1937,7 +2217,8 @@ namespace Jak3Online
                     {
                         if (!InWorld) { PushFeed(T("La boutique n'est ouverte que dans le monde en ligne", "The shop is only open in the online world")); break; }
                         int id = (int)mode;
-                        int res = profil.Buy(id);
+                        bool far = player == 1;   // achat a distance (+50 % sur les objets du Naughty Ottsel)
+                        int res = profil.Buy(id, far);
                         string nm = id >= 0 && id < Catalog.Count && Catalog.Items[id] != null ? Lang.TrFr(CurLang, Catalog.Items[id].Name) : "?";
                         switch (res)
                         {
@@ -1946,11 +2227,11 @@ namespace Jak3Online
                                     Catalog.Item it = Catalog.Items[id];
                                     if (it.Kind == Catalog.KIND_POWER)
                                     {
-                                        Reward(-Catalog.Price(id), 0, T("Pouvoir active : ", "Power on: ") + nm);
+                                        Reward(-Catalog.PriceFor(id, far), 0, T("Pouvoir active : ", "Power on: ") + nm);
                                         lock (lk) { announce = nm.ToUpperInvariant() + " !"; announceKind = 1; announceSeq++; }
                                         if (it.Bit == 3) SendNote(3, (int)profil.PowerLeft(3));
                                     }
-                                    else Reward(-Catalog.Price(id), 0, T("Achat : ", "Bought: ") + nm);
+                                    else Reward(-Catalog.PriceFor(id, far), 0, T("Achat : ", "Bought: ") + nm);
                                     if (it.Kind == Catalog.KIND_CONSUMABLE)
                                     {
                                         GameEvent e = new GameEvent();
@@ -2045,6 +2326,49 @@ namespace Jak3Online
                 case EV_BOSS_POS:
                     OnGameBossPos(player, dmg, (int)mode, dx, dy, dz);
                     break;
+                case EV_HOUSE:
+                    // je suis dans la maison de 'player' (0 = dehors) : annonce aux autres
+                    myHouseOwner = mode == 0 ? 0u : player;
+                    if (SessionId != 0) SendMsg(MSG_HOUSE, 0, BitConverter.GetBytes(myHouseOwner));
+                    lastHouseMsg = DateTime.UtcNow;
+                    break;
+                case EV_MAIL:
+                    {
+                        // boite aux lettres de MA maison : le courrier (orbes) accumule depuis la derniere releve
+                        int hk = (int)mode / 16, box = (int)mode % 16;
+                        if (!InWorld || hk < 0 || hk >= Catalog.HouseItem.Length || !profil.Owns(Catalog.HouseItem[hk])) break;
+                        if (myHouseOwner != 0 && myHouseOwner != MyId) { PushFeed(T("Ce n'est pas ta boite aux lettres", "This is not your mailbox")); break; }
+                        long got = profil.CollectMail(hk, box);
+                        if (got > 0)
+                            Reward((int)got, (int)(got / 10), T("Courrier de ta maison : +", "Mail from your house: +") + got + T(" orbes", " orbs"));
+                        else
+                            PushFeed(T("Boite vide : reviens demain (le courrier s'accumule 3 jours)", "Empty mailbox: come back tomorrow (mail piles up for 3 days)"));
+                        profil.Save(true);
+                        break;
+                    }
+                case EV_INVITE:
+                    {
+                        int hk = (int)mode;
+                        if (!InWorld || hk < 0 || hk >= Catalog.HouseItem.Length || !profil.Owns(Catalog.HouseItem[hk])) { PushFeed(T("Achete d'abord cette maison", "Buy this house first")); break; }
+                        SendMsg(MSG_INVITE, player, new byte[] { (byte)hk });
+                        string tn;
+                        lock (lk) { MemberInfo tm; tn = members.TryGetValue(player, out tm) ? tm.Name : "?"; }
+                        PushFeed(T("Invitation envoyee a ", "Invitation sent to ") + tn);
+                        break;
+                    }
+                case EV_SHOT:
+                    // je tire : les autres joueurs voient le tir
+                    if (SessionId != 0)
+                        SendMsg(MSG_SHOT, 0, Build(w => { w.Write((byte)mode); w.Write(dx); w.Write(dy); w.Write(dz); }));
+                    break;
+                case EV_COOP:
+                    // coop (session privee) : ce que j'ai termine est termine chez les autres
+                    if (SessionId != 0 && (!InWorld || mode != 3))
+                        SendMsg(MSG_COOP, 0, Build(w => { w.Write((byte)mode); w.Write(player); }));
+                    break;
+                case EV_WEAR:
+                    if (InWorld) profil.SetWear((int)mode);
+                    break;
                 case EV_PERSO:
                     if (InWorld && profil.SetPerso((int)mode))
                         PushFeed(T("Personnage : ", "Character: ") + (mode == 0 ? "Jak" : Lang.TrFr(CurLang, Catalog.Items[Profil.PersoItem[mode]].Name)));
@@ -2105,12 +2429,17 @@ namespace Jak3Online
                 PutU32(img, b + Ext.Vehicles, veh);
                 PutU32(img, b + Ext.Items, items);
                 PutU32(img, b + Ext.Perso, (uint)profil.Perso);
+                PutU32(img, b + Ext.CosmOwned, (uint)profil.Cosm);
+                PutU32(img, b + Ext.CosmWear, (uint)profil.WearChecked());
             }
             PutStr(img, b + Ext.CmdText, cmdText, 32);
             PutU32(img, b + Ext.AnnSeq, announceSeq);
             PutU32(img, b + Ext.AnnKind, (uint)announceKind);
             PutStr(img, b + Ext.AnnText, announce, 88);
             PutU32(img, b + Ext.TimeSeq, timeSeq);
+            PutU32(img, b + Ext.DayLock, dayLock ? 1u : 0u);
+            PutU32(img, b + Ext.Weather, InWorld ? (uint)weather : 0u);
+            PutU32(img, b + Ext.LocalJ2, (uint)LocalJ2Flags);
             PutF32(img, b + Ext.TimeHour, timeHour);
             PutU32(img, b + Ext.BountyId, bountyId);
             PutU32(img, b + Ext.BountyAmount, bountyAmount);
@@ -2125,12 +2454,14 @@ namespace Jak3Online
             PutU32(img, b + Ext.RaceRank, (uint)raceRank);
             PutU32(img, b + Ext.RaceCount, (uint)raceCount);
             PutStr(img, b + Ext.RaceName, raceName, 24);
-            // prix de la boutique (0..63, puis 64..95) et niveau requis
+            // prix de la boutique (0..63, 64..95, puis 96..127) et niveau requis
             for (int i = 0; i < Catalog.Count; i++)
             {
                 if (i < 64) PutU32(img, b + Ext.Prices + i * 4, (uint)Catalog.Price(i));
-                else PutU32(img, b + Ext.PricesHi + (i - 64) * 4, (uint)Catalog.Price(i));
-                img[b + Ext.ReqLevel + i] = (byte)Math.Min(255, Catalog.ReqLevel(i));
+                else if (i < 96) PutU32(img, b + Ext.PricesHi + (i - 64) * 4, (uint)Catalog.Price(i));
+                else PutU32(img, b + Ext.PricesX + (i - 96) * 4, (uint)Catalog.Price(i));
+                if (i < 96) img[b + Ext.ReqLevel + i] = (byte)Math.Min(255, Catalog.ReqLevel(i));
+                else img[b + Ext.ReqLevelX + (i - 96)] = (byte)Math.Min(255, Catalog.ReqLevel(i));
             }
             // super-pouvoirs : secondes restantes
             if (profil != null)
@@ -2361,6 +2692,9 @@ namespace Jak3Online
         public void TestGameEvent(int kind, uint player, float dmg, uint mode) { MondeGameEvent((uint)kind, player, dmg, mode, 0, 0, 0); }
         public long TestMoney { get { lock (lk) return profil != null ? profil.Money : -1; } }
         public int TestLevel { get { return profil != null ? profil.Level : 0; } }
+        public int TestBuy(int id) { return profil.Buy(id); }
+        public bool TestPerso(int k) { return profil.SetPerso(k); }
+        public int TestWear { get { return profil.WearChecked(); } }
         public void TestSetMoney(long m) { lock (lk) { profil.Money = m; profil.Touch(); } }
         public void TestSetXp(long x) { lock (lk) { profil.Xp = x; profil.Touch(); } levelBefore = profil.Level; }
         public void TestSendHitMode(uint target, float dmg, int mode)
@@ -2386,7 +2720,7 @@ namespace Jak3Online
             EvSeq = 5344, EvKind = 5348, EvState = 5352, EvTimer = 5356, EvPos = 5360, EvHp = 5376, EvMyDmg = 5380,
             EvCount = 5384, EvId = 5388, EvName = 5392, EvLevel = 5424, EvRadius = 5440, EvBoss = 5444, EvScore = 5448,
             EvTop = 5452, Streak = 5516, WarnSeq = 5520, WarnText = 5524, XpMul = 5588,
-            BossSeq = 5600, BossDriver = 5604, BossAnim = 5608, BossPos = 5616, EvTarget = 5632, EvDur = 5636, MapFlags = 5640, Perso = 5644,
+            BossSeq = 5600, BossDriver = 5604, BossAnim = 5608, BossPos = 5616, EvTarget = 5632, EvDur = 5636, MapFlags = 5640, Perso = 5644, PricesX = 5648, ReqLevelX = 5776, DayLock = 5808, LocalJ2 = 5812, Weather = 5816, CosmOwned = 5820, CosmWear = 5824,
             Tail = Size - 4;
     }
 }

@@ -1274,14 +1274,16 @@
   )
 
 (define *strafe-mode* #f)
+;; jak 3 en ligne : premiere personne (repris du mod Jak 4) : Jak fait face a la camera
+(define *strafe-dir* (new 'static 'vector :x 0.0 :y 0.0 :z 1.0 :w 1.0))
 
 (defbehavior do-rotations2 target ()
-  (if *strafe-mode*
-      (return 0)
-      )
   (let ((gp-0 (vector-z-quaternion! (new-stack-vector0) (-> self control dir-targ)))
         (s5-0
           (cond
+            (*strafe-mode*
+             *strafe-dir*
+             )
             ((logtest? (surface-flag turn-to-alt) (-> self control current-surface flags))
              (-> self control turn-to-alt-heading)
              )

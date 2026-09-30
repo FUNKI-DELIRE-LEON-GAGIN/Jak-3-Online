@@ -439,10 +439,19 @@
   (none)
   )
 
+
 (defmethod warf-projectile-method-45 ((this warf-projectile))
-  (when (time-elapsed? (-> this spawn-time) (seconds 0.5))
-    (vector-copy! (-> this hit-pos) (-> this root trans))
-    (go (method-of-object this impact))
+  ;; MOD : BOMBE DU HELLCAT HORS DE L'USINE (demande du joueur : "une vraie explosion a son impact").
+  ;; A l'origine la bombe explose d'office 0,5 s apres le tir (~100 m devant) : c'est le design du
+  ;; combat de l'usine, on le garde LA-BAS. Ailleurs elle vole jusqu'a 2,5 s et explose A L'IMPACT :
+  ;; au sol / sur un obstacle (warf-projectile-move), ou au contact d'un robot geant -- ses tirs ne
+  ;; savent pas toucher un ennemi (pas de "enemy" dans sa collision), et les robots de space-plat
+  ;; restent a 200 m : l'ancienne bombe explosait toujours avant de les atteindre.
+  (let ((usine (level-get *level* 'lfactory)))
+    (when (time-elapsed? (-> this spawn-time) (if usine (seconds 0.5) (seconds 2.5)))
+      (vector-copy! (-> this hit-pos) (-> this root trans))
+      (go (method-of-object this impact))
+      )
     )
   0
   (none)
@@ -562,24 +571,46 @@
 (defstate impact (warf-projectile)
   :virtual #t
   :enter (behavior ()
-    (local-vars (sv-32 int))
     (set! (-> self hit-pos w) 0.0)
     (kill-particles (-> self part))
-    (let ((gp-0 (new 'stack-no-clear 'warf-explosion-sphere-init-params)))
-      (vector-copy! (-> gp-0 pos) (-> self hit-pos))
-      (let ((s5-0 sound-play-by-name)
-            (sname (static-sound-name "impact-trigger2"))
-            (s3-0 (new-sound-id))
-            (s2-0 1024)
-            (s1-0 0)
-            (s0-0 0)
-            )
-        (set! sv-32 0)
-        (let ((t2-0 (target-pos 0)))
-          (s5-0 (the-as sound-name sname) s3-0 s2-0 s1-0 s0-0 (the-as sound-group sv-32) t2-0)
-          )
+    ;; MOD: warf-explosion-sphere = modèle 'hemisplosion. Hors factory son rendu crashe
+    ;; (modèle sans slot d'affichage hors région native). On le spawn SEULEMENT en factory.
+    ;; Hors factory la bombe inflige quand même les dégâts (call-parent-state-handler) + particules.
+    (when (level-get *level* 'lfactory)
+      (let ((gp-0 (new 'stack-no-clear 'warf-explosion-sphere-init-params)))
+        (vector-copy! (-> gp-0 pos) (-> self hit-pos))
+        (sound-play "impact-trigger2" :position (target-pos 0))
+        (process-spawn warf-explosion-sphere gp-0 :name "warf-explosion-sphere" :to self)
         )
-      (process-spawn warf-explosion-sphere gp-0 :name "warf-explosion-sphere" :to self)
+      )
+    ;; MOD : EXPLOSION NOVA de la bombe hellcat PARTOUT. group-darkjak-bomb (le gros blast
+    ;; violet/nucléaire "super nova") est dans GAME -> sûr dans tous les niveaux, contrairement
+    ;; au cercle bleu (hemisplosion) qui crashait hors factory. Remplace le visuel manquant.
+    ;; ⭐⭐ ELLE N'ETAIT PAS VISIBLE A L'IMPACT : `part-tracker-spawn` place les particules sur
+    ;; `*launch-matrix*`, que personne ne remplissait ici -> l'explosion naissait la ou la derniere
+    ;; particule du jeu avait ete lancee, loin de la bombe. On pose maintenant la matrice sur le point
+    ;; d'impact avant chaque effet, et on ajoute la vraie boule de feu du jeu (group-kg-huge-explosion,
+    ;; celle des gros vehicules KG, echelle 4, GAME) sous la nova. Les effets vont dans *entity-pool* :
+    ;; ils vivent leur vie meme apres la disparition de la bombe.
+    (let ((pos (-> self hit-pos)))
+      (vector-copy! (-> *launch-matrix* trans) pos)
+      (set! (-> *launch-matrix* trans w) 1.0)
+      (if (logtest? (-> group-kg-huge-explosion flags) (sp-group-flag sp13))
+          (part-tracker-spawn part-tracker-subsampler :to *entity-pool* :group group-kg-huge-explosion)
+          (part-tracker-spawn part-tracker :to *entity-pool* :group group-kg-huge-explosion)
+          )
+      (vector-copy! (-> *launch-matrix* trans) pos)
+      (set! (-> *launch-matrix* trans w) 1.0)
+      (if (logtest? (-> group-darkjak-bomb flags) (sp-group-flag sp13))
+          (part-tracker-spawn part-tracker-subsampler :to *entity-pool* :group group-darkjak-bomb)
+          (part-tracker-spawn part-tracker :to *entity-pool* :group group-darkjak-bomb)
+          )
+      (sound-play "impact-trigger2" :position pos)
+      (sound-play "explosion" :position pos)
+      ;; secousse de camera seulement si l'explosion est proche
+      (if (< (vector-vector-distance pos (-> *math-camera* trans)) (meters 150))
+          (activate! *camera-smush-control* 819.2 37 210 1.0 0.995 (-> *display* camera-clock))
+          )
       )
     (call-parent-state-handler enter)
     )

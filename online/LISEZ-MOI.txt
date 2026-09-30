@@ -1,7 +1,7 @@
 ﻿JAK 3 EN LIGNE - jusqu'à 100 joueurs par session
 =================================================
 
-Le jeu est celui d'origine (plus de joueur 2 local) + le mode en ligne.
+Le jeu est celui d'origine + le mode en ligne (+ un JOUEUR 2 LOCAL si tu veux, voir plus bas).
 La langue suit celle de Windows (réglable dans la fenêtre du programme).
 Chaque joueur joue SA partie (sa sauvegarde, ses missions, sa progression).
 Les autres joueurs de la session apparaissent dans ton monde (Jak animé + pseudo
@@ -22,7 +22,10 @@ jeu en pause comme d'habitude (elles ont besoin de la mémoire de l'image).
 
 DÉMARRAGE (une seule fois)
 --------------------------
-  Double-clique sur  data\online\Jak3Online.exe
+  1. Dans le launcher OpenGOAL : Jak 3 > Jak 3 Online > bouton des reglages
+     du mod > "Ouvrir le dossier" (Open folder).
+  2. Ouvre  data > online  puis double-clique sur  Jak3Online.exe
+     Il cree un raccourci "Jak 3 Online" sur ton BUREAU pour les fois suivantes.
   C'est tout. Il se connecte tout seul à internet (serveur GRATUIT, aucun
   compte, aucun port à ouvrir), se range à côté de l'horloge de Windows et
   démarre ensuite automatiquement avec Windows.
@@ -76,15 +79,34 @@ TOUCHES EN SESSION (clavier / manette)
   SELECT  (TAB)  : LE MENU (flèches / croix directionnelle, Entrée / X, Échap / Rond) :
                      JOUEURS    : niveau, rang, pseudo et zone de chaque joueur ; choisis un
                                   joueur pour aller vers lui ou l'ignorer
-                     BOUTIQUE   : VÉHICULES (achète-les puis appelle-les PARTOUT),
-                                  SUPER-POUVOIRS, soins, munitions, réparation du véhicule
+                     BOUTIQUE   : (le menu s'ouvre dessus) TOUT, dans l'ordre : ALLER AU NAUGHTY
+                                  OTTSEL, PERSONNAGES, TÉLÉPORTATION, MAISONS,
+                                  VÉHICULES (achète-les puis appelle-les PARTOUT), ARMES,
+                                  CHARGEURS ET DÉGÂTS, JETBOARD, DARK JAK, LIGHT JAK,
+                                  ARMURES, AMÉLIORATIONS, STYLE, SUPER-POUVOIRS, SOINS
+                     PERSOS     : choisir ton personnage (et acheter les autres)
                      ÉVÉNEMENTS : l'événement en cours + lancer une COURSE
                      MOI        : tes stats (niveau, rang, orbes, éliminations, série),
-                                  afficher/masquer la liste, les pseudos, le chat ;
-                                  appel rapide de tes véhicules
+                                  ACCEPTER / REFUSER une invitation dans une maison,
+                                  quitter la maison, afficher/masquer la liste, les
+                                  pseudos, le chat ; appel rapide de tes véhicules
                      ADMIN      : SEULEMENT pour le créateur (monde en ligne) ou l'hôte
                                   (session privée) - voir plus bas
-  TRIANGLE au Naughty Ottsel : la boutique d'armes, JetBoard, Dark / Light Jak, armures.
+  Le curseur du menu saute les titres (haut / bas vont directement à la ligne suivante).
+  ONGLET ADMIN rangé par catégories : TOUT LE MONDE (téléporter tout le monde, soigner, annonce,
+  geler, PvP, remettre le monde à neuf) en haut, puis MOI (créateur : MODE DEBUG, triches, niveau,
+  orbes), ÉVÉNEMENTS, MISSIONS, PARCOURS (+ COURSE AUTO, CACHE-CACHE), HEURE DU MONDE, MÉTÉO,
+  DIALOGUES, MODÉRATION. Les catégories s'ouvrent et se ferment (TRIANGLE referme).
+  CAMÉRA « JAK 4 » (comme le mod Jak 4) : elle suit et tourne deux fois plus vite, champ de vision
+  large (encore plus large en véhicule), et elle suit vraiment les motos et voitures de Haven.
+  Dans le monde en ligne il n'y a pas d'« hôte » (plus de message « X est maintenant l'hôte »).
+  Le MODE DEBUG est réservé au créateur ; en session, son menu ne met plus le jeu en pause.
+  TRIANGLE au Naughty Ottsel : la boutique d'armes, JetBoard, Dark / Light Jak, armures
+  (les mêmes objets sont aussi dans SELECT > BOUTIQUE, où que tu sois, mais À DISTANCE ils
+  coûtent 50 % de plus : au Naughty Ottsel, prix normal). Le Naughty Ottsel est au port de
+  Haven : son icône est toujours sur la carte, et un panneau BOUTIQUE flotte au-dessus de
+  l'entrée. En arrivant dans le monde en ligne, un message rappelle où sont le menu, la
+  boutique et les personnages.
 
   À l'écran :
    - en haut à gauche : tes orbes (orbe précurseur qui tourne), ton NIVEAU et ton RANG,
@@ -109,10 +131,11 @@ QUI A LES POUVOIRS DE MODÉRATION ?
     cette clé : les autres jeux refusent tout ordre qui n'est pas signé par elle.
     Changer de pseudo ou copier le mod ne donne AUCUN pouvoir.
   - session privée : l'HÔTE de la session (sauf les cadeaux d'orbes / véhicules).
-  Onglet ADMIN : lancer un BOSS (au hasard, ROBO BOSS, TITAN, BÊTE DU DÉSERT, DARK JAK
+  Onglet ADMIN : en HAUT, la section du créateur (son niveau, ses orbes, ses triches et le
+  MODE DEBUG, aussi dans SELECT > MOI : OUI / NON, pour lui seul). Puis : lancer un BOSS (au hasard, ROBO BOSS, TITAN, BÊTE DU DÉSERT, DARK JAK
   GÉANT) / une PLUIE D'ORBES / un TRÉSOR / une ZONE / le DOUBLE XP / une PLUIE DE MÉTÉORES
   à l'endroit où tu es, une CHASSE À L'HOMME sur toi (le premier qui t'élimine gagne
-  1500 orbes), un PARCOURS sur une des 5 cartes, PvP, annonce, heure du monde, soigner /
+  1500 orbes), un PARCOURS sur une des 8 cartes, PvP, annonce, heure du monde, soigner /
   TÉLÉPORTER TOUT LE MONDE PRÈS DE TOI / geler tout le monde, REMETTRE LE MONDE À NEUF
   (ennemis, caisses et objets renaissent chez tout le monde), débannir.
   Sur un joueur (onglet JOUEURS) : le téléporter près de toi, le soigner, le geler, le
@@ -147,7 +170,10 @@ LE MONDE EN LIGNE (LA SESSION PUBLIQUE)
     Peau d'acier (dégâts reçus divisés par deux), Fantôme (invisible sur les cartes des
     autres), Radar (tous les joueurs sur ta mini-carte), Double XP, Aimant à orbes (orbes
     doublées), Régénération.
-  - ÉVÉNEMENTS toutes les 6 à 9 minutes, quelque part près d'un joueur :
+  - ÉVÉNEMENTS au hasard toutes les 10 à 15 minutes (8 à 12 à partir de 6 joueurs), jamais deux
+    fois le même de suite. À moins de 3 joueurs, seulement les petits (pluie d'orbes, double XP,
+    zone, météores) ; les boss, trésors et PARCOURS (chacun choisit d'y aller ou non) arrivent
+    quand il y a du monde. Quelque part près d'un joueur :
      * ALERTE BOSS : un boss géant apparaît. 6 boss : les VRAIS boss (le ROBO BOSS, robot
        précurseur géant ; le TITAN, robot Dark Maker de 40 m qui lance des bombes ; la
        BÊTE DU DÉSERT, énorme et très rapide) et 3 Jak géants (DARK JAK GÉANT, OMBRE DE
@@ -165,6 +191,9 @@ LE MONDE EN LIGNE (LA SESSION PUBLIQUE)
        participer ; on peut rejoindre plus tard par SELECT > ÉVÉNEMENTS). Le PREMIER qui
        arrive EN HAUT gagne : plus la carte est dure, plus ça rapporte. Dès qu'il y a un
        gagnant, les autres sont renvoyés au port de Haven.
+     * MISSION (lancée par le créateur, SELECT > ADMIN > MISSION) : une mission secondaire du jeu
+       (anneaux, chasses aux esprits, contre-la-montre, rallye, défi JetBoard...). Le PREMIER qui
+       la réussit gagne 2000 orbes et 1500 XP.
      * PLUIE D'ORBES : des orbes tombent partout autour (gains doublés sur place).
      * CHASSE AU TRÉSOR : une orbe dorée géante est cachée dans la zone, l'indice
        "froid / tiède / chaud / brûlant" te guide ; le premier qui la touche gagne.
@@ -172,7 +201,7 @@ LE MONDE EN LIGNE (LA SESSION PUBLIQUE)
      * DOUBLE XP pour tout le monde pendant 5 minutes.
   - PRIMES : de temps en temps une tête est mise à prix (flèche rouge sur la carte) ; le
     créateur peut aussi mettre une prime de 1000 ou 5000 orbes sur un joueur.
-  - LES 5 CARTES DU MOD (parcours) :
+  - LES 8 CARTES DU MOD (parcours) :
      * VILLAGE DE JAK 1 (le vrai village de Jak 1, 900 orbes) : course d'exploration de
        la hutte de Samos jusqu'à la colline aux palmiers.
      * TOUR CÉLESTE (2000 orbes) : spirale de plateformes précurseurs dans le ciel.
@@ -180,12 +209,22 @@ LE MONDE EN LIGNE (LA SESSION PUBLIQUE)
      * GLACIER (3000 orbes) : glace glissante, toboggan, vent, glace qui se brise.
      * PARIS (4000 orbes) : les toits d'un boulevard haussmannien, la Seine, et l'ascension
        de la TOUR EIFFEL jusqu'au sommet.
+     * FORÊT SUSPENDUE (2500 orbes) : cabanes dans les arbres géants, ponts de cordes,
+       champignons, feuilles qui disparaissent, jusqu'à la cime.
+     * USINE INFERNALE (4500 orbes) : poutres, pistons, engrenages, tapis roulants, grilles
+       qui cèdent, passerelle dans le vent, ascenseurs jusqu'en haut de la cheminée.
+     * CANYON DU DÉSERT (1500 orbes) : piliers de roche, pont de cordes, tremplins, crête
+       venteuse jusqu'au totem.
+    SUR UN PARCOURS, PAS DE RACCOURCI : ni JetBoard, ni vol de Light Jak, ni super-pouvoirs, ni
+    éco bleu, ni véhicule.
     Plateformes mobiles, qui tournent, qui disparaissent, ascenseurs, tremplins, vent,
     points de passage (on repart du dernier en cas de chute). Tomber dans le vide, la
     lave ou la Seine = retour au dernier point de passage (pas de mort).
   - BOUTIQUE (SELECT) : aussi 5 VIES posées au sol devant toi, une CAISSE DE MUNITIONS
     au sol, et l'ÉCO BLEU (3 min) : course, sauts et roulades beaucoup plus rapides, tir
     rapide, véhicule 2,5 fois plus rapide, aimant qui attire orbes, vies et munitions.
+  - Dans le monde en ligne, le PvP, la visibilité de la session et les BOTS de test sont
+    réservés au CRÉATEUR (un joueur devenu « hôte » du monde ne peut plus les changer).
   - PAS DE TRICHE : la page Secrets du menu Start est supprimee ; invincibilite, munitions
     infinies, Dark/Light Jak illimites, turbo, invisibilite et mode debug sont coupes pour tout
     le monde. Seul le CREATEUR peut les activer (SELECT > ADMIN), et y regler son niveau
@@ -197,22 +236,127 @@ LE MONDE EN LIGNE (LA SESSION PUBLIQUE)
     Ce sont les seuls "secrets" achetables ; tricher (memoire, console, debug) est
     detecte : la triche est coupee et le tricheur est EXPULSE automatiquement du monde en
     ligne (a chaque fois qu'il recommence).
-  - PERSONNAGES (SELECT > BOUTIQUE > PERSONNAGES) : joue avec le corps d'un autre
-    personnage, avec TOUS les mouvements de Jak (course, sauts, armes, véhicules...). Toi et
-    les autres joueurs le voyez en temps réel. Jak est gratuit (pour redevenir Jak quand tu
-    veux) ; KEIRA 800 orbes, JAK 2 600, JAK 1 HD 700, JAK 4 1200 (niveau 5), TESS 800.
-    DAXTER 150 orbes : le vrai mode Daxter du jeu (ses propres mouvements et attaques).
-    Daxter n'est sur l'epaule que de Jak (Jak 3). L'achat et ton choix sont sauvegardés.
-  - COLLISIONS ENTRE VÉHICULES : chacun prend sa part du choc comme dans la réalité ; celui
-    qui fonce ralentit, celui qui est percuté part en l'air comme une voiture de civil.
+  - PERSONNAGES (SELECT > PERSOS) : joue avec le corps d'un autre personnage, avec TOUS les
+    mouvements de Jak (course, sauts, armes, véhicules...). Toi et les autres joueurs le voyez
+    en temps réel. Jak est gratuit (pour redevenir Jak quand tu veux) ; KEIRA 1500 orbes,
+    JAK 2 1200, JAK 1 HD 1000, JAK 4 3000 (niveau 8), TESS 1500, ASHELIN 2500 (niveau 8),
+    TORN 2500 (niveau 8), SIG 4000 (niveau 12), SAMOS 5000 (niveau 15), DAXTER 500 (le vrai
+    mode Daxter du jeu). Chaque personnage a SA voix (plus aiguë pour les filles, plus grave
+    pour Torn, Sig et Samos). L'achat et ton choix sont sauvegardés.
+  - ACCESSOIRES (SELECT > BOUTIQUE > STYLE) : habille ton personnage ! TOUS les joueurs voient
+    tes accessoires, sur Jak comme sur les autres personnages. Un par emplacement :
+      TÊTE   : casquette 1 500 (niv. 2), chapeau de cowboy 4 000 (niv. 5), haut-de-forme 8 000
+               (niv. 8), casque de guerrier 20 000 (niv. 15), cornes de démon 30 000 (niv. 20),
+               COURONNE D'OR 100 000 (niv. 30), AURÉOLE 250 000 (niv. 50)
+      VISAGE : lunettes de soleil 2 000 (niv. 3), masque de ninja 6 000 (niv. 6), masque de fer
+               25 000 (niv. 18)
+      DOS    : sac à dos 3 000 (niv. 3), cape rouge 12 000 (niv. 10), AILES D'ANGE 150 000
+               (niv. 40), AILES DE DÉMON 300 000 (niv. 60)
+    Les plus beaux sont réservés aux hauts niveaux. Un accessoire acheté se porte tout de
+    suite ; X sur sa ligne pour le retirer ou le remettre.
+  - VUE À LA PREMIÈRE PERSONNE (comme le mod Jak 4) : R3 (clic du stick droit) ou
+    SELECT > MOI > "Vue à la 1re personne". La caméra est dans les yeux de Jak, le stick
+    droit fait regarder, Jak se tourne avec la caméra et l'arme tire là où tu regardes.
+    En véhicule, en planche, mort ou en cinématique : vue normale le temps que ça dure.
+    R3 (ou L3) pour revenir à la vue normale.
+  - COLLISIONS ENTRE JOUEURS : on ne se traverse plus. On se pousse, on peut MONTER SUR LA
+    TÊTE d'un autre joueur et il t'emporte quand il marche. Sans danger : pas de dégâts, et
+    si deux joueurs apparaissent l'un dans l'autre, personne n'est éjecté.
+  - MAISONS (SELECT > BOUTIQUE > MAISONS) : 8 maisons, de plus en plus grandes et belles :
+      CABANE DANS LES BOIS      3 000 orbes (niveau 3)   1 boîte aux lettres
+      VILLA AU BORD DE L'EAU   12 000 orbes (niveau 6)   2 boîtes (vraie mer, piscine, yacht,
+                                                           bateau qui fait le tour de l'île)
+      MAISON EN CUBES          20 000 orbes (niveau 8)   2 boîtes (tout en blocs, étang, tour)
+      CHÂTEAU                  30 000 orbes (niveau 10)  3 boîtes
+      MANOIR                   75 000 orbes (niveau 14)  4 boîtes (3 étages, salle de bal,
+                                                           labyrinthe de haies, piscine)
+      PENTHOUSE DU GRATTE-CIEL 150 000 orbes (niveau 18) 5 boîtes (ascenseur, piscine à
+                                                           débordement, héliport)
+      TEMPLE PRÉCURSEUR        350 000 orbes (niveau 22) 7 boîtes
+      PALAIS DE L'ÎLE        1 000 000 orbes (niveau 25) 10 boîtes (coupoles d'or, salle du
+                                                           trône, port, yacht, bateaux, plage)
+    BOÎTES AUX LETTRES : dans TA maison, touche une boîte pour relever le courrier : des orbes
+    chaque jour (150 à 1000 par boîte et par jour selon la maison). Le courrier s'accumule
+    3 jours au plus : reviens souvent ! Dans l'eau (mer, piscines) on NAGE vraiment.
+    Une fois achetée :
+    "Aller dans ma maison" (téléportation gratuite). INVITER un ami : SELECT > JOUEURS > le
+    joueur > "L'inviter dans ma maison". Il reçoit un message et doit ACCEPTER (SELECT > MOI,
+    pendant 1 minute) : il est alors téléporté chez toi. Dans une maison, on ne voit QUE les
+    joueurs de la même maison (deux joueurs chacun dans SA cabane ne se voient pas).
+    Sortir : SELECT > MOI > "Quitter la maison" (retour au port de Haven).
+  - STYLE (SELECT > BOUTIQUE > STYLE) : grosse tête (400), petite tête (400), pantalon pour
+    Daxter (300), monde miroir (250), Jak sans barbe (200). Une fois acheté, active ou coupe-le
+    quand tu veux (même ligne du menu).
+  - COOP EN SESSION PRIVÉE (avec un code) : ce qu'un joueur termine est terminé chez tous.
+    Objets ramassés, caisses cassées, ennemis tués, étapes de mission validées.
+  - MONDE EN LIGNE SYNCHRONISÉ : un ennemi tué, une caisse cassée, un objet ramassé par un
+    joueur l'est aussi chez les autres (les missions restent à chacun).
+  - Les TIRS des autres joueurs se voient partout, avec le VRAI tir de leur arme (Blaster,
+    Scatter Gun, Vulcan Fury, Peacemaker, Plasmite RPG...).
+  - PASSAGER : TRIANGLE près du véhicule d'un autre joueur pour monter avec lui. Tu es ASSIS
+    À CÔTÉ de lui en voiture / buggy, DERRIÈRE lui en moto, et tout le monde te voit à ta place.
+    TRIANGLE pour descendre.
+  - HEURE DU MONDE : la même chez tout le monde (elle se recale toute seule, même pour ceux
+    qui arrivent après). Le créateur peut la changer et activer le JOUR PERMANENT
+    (SELECT > ADMIN > HEURE DU MONDE).
+  - Les autres joueurs bougent de façon plus fluide (même si leur connexion rame un peu) ;
+    un bond dû au lag n'est plus jamais pris pour de la triche.
+  - VRAIES COLLISIONS AVEC LES VÉHICULES DES AUTRES : leur véhicule a sa VRAIE forme de
+    collision (celle du jeu). Tu peux grimper DESSUS et y rester debout : quand le conducteur
+    roule (ou vole en Hellcat), il t'emporte avec lui. Deux véhicules qui se rentrent dedans
+    se percutent vraiment (on ne passe plus au travers) : celui qui fonce ralentit, celui qui
+    est percuté est poussé, avec étincelles et bruit de choc. Les dégâts du choc, eux,
+    seulement si le PvP est actif.
+  - HELLCAT (SELECT > BOUTIQUE > VÉHICULES, 12000 orbes, niveau 12) : le vaisseau de l'usine,
+    pilotable PARTOUT (Haven, désert...) : il VOLE, tire, lâche des bombes. Les autres joueurs
+    le voient voler, et peuvent monter dessus.
   - PAS DE BROUILLARD dans le monde en ligne. La CARTE (menu Start) ne met pas le jeu en
     pause : pendant que tu la regardes, les autres peuvent t'attaquer.
   - COURSES : SELECT > ÉVÉNEMENTS, tous les joueurs à moins de 80 m participent.
+  - COURSE AUTO (événement) : tout le monde part sur le CIRCUIT (une île au milieu de la vraie
+    mer, avec un grand dôme doré, un phare, des tribunes, un écran géant), chacun reçoit un
+    véhicule sur la grille de départ. UN tour : il faut passer les 3 points de passage DANS
+    L'ORDRE. Les flèches bleues au sol donnent un coup d'accélérateur ; les TURBOS du jeu (les
+    boules de feu sur la piste) se RAMASSENT : ton véhicule en garde jusqu'à 3 et tu les lances
+    quand tu veux (R2). On peut TIRER avec les véhicules (R1). Un tremplin à sauter. Le premier
+    à l'arrivée gagne 3000 orbes. ANTI-TRICHE : le programme vérifie chaque point de passage
+    (ordre et position) et la durée minimale d'une course ; une arrivée sans le tour est refusée.
+  - COURSES OFFICIELLES DU JEU (admin > PARCOURS) : rallye du désert, courses contre la montre,
+    anneaux... : le premier qui la réussit gagne 2000 orbes.
+  - EN VÉHICULE dans le monde en ligne : tirs (R1) et turbos (R2) autorisés partout, même si
+    l'histoire ne les a pas encore débloqués.
+  - CACHE-CACHE (événement) : au MANOIR, tout le monde devient BLEU et un personnage ROUGE se
+    cache (dans la maison, le jardin, le labyrinthe...). Le premier qui le touche gagne 2500
+    orbes.
+  - MÉTÉO (admin) : pluie, orage (éclairs et tonnerre), neige, beau temps. Tout le monde la
+    voit, même ceux qui arrivent après.
+  - DIALOGUES (admin) : fait entendre à tout le monde une réplique du jeu (Daxter, Jak, Torn,
+    Sig, Damas, Pecker...) ; chacun l'entend dans la langue de SON jeu.
+  - VILLAGE DE JAK 1 : la mer est une vraie mer, on y nage... et si tu nages trop loin du
+    rivage, un REQUIN LURKER arrive (comme dans Jak 1) : regagne vite la terre !
   - Pas de "secrets" du jeu dans le monde en ligne (invincibilité, munitions infinies...),
     pas de codes de triche, pas de Dark Jak invincible.
   - Le monde en ligne n'est JAMAIS sauvegardé dans tes emplacements : ta partie solo
     n'est pas touchée. Ton profil en ligne (orbes, niveau, achats) est gardé à part,
     chiffré par Windows : %APPDATA%\Jak3Online\profil.dat
+
+
+JOUEUR 2 LOCAL (2e fenêtre, 2e manette : comme un écran partagé)
+-----------------------------------------------------------------
+  Pour jouer à DEUX sur le même PC (ou tester le mode en ligne tout seul) :
+   - dans le jeu : Start > EN LIGNE > "JOUEUR 2 LOCAL", ou SELECT > MOI > "JOUEUR 2 LOCAL" ;
+   - ou dans la fenêtre du programme : bouton "+ Joueur 2 local (2e manette)".
+  Un 2e jeu s'ouvre dans une 2e fenêtre, à droite de la tienne (les deux passent en fenêtre,
+  côte à côte ; case "Côte à côte" dans le programme). Le joueur 2 :
+   - a SA manette : automatiquement une autre manette que la tienne (ou celle choisie dans
+     le programme, "Manette J2"), et il peut en changer : SELECT > MOI > "Manette du joueur 2" ;
+   - chaque jeu lit SA manette même quand sa fenêtre n'est pas active ; le clavier reste au
+     joueur 1 ;
+   - a SON profil (orbes, niveau, achats), jamais créateur, et charge ta sauvegarde la plus
+     récente (copiée pour lui la première fois : ta partie n'est pas touchée) ;
+   - rejoint TOUT SEUL la même session que toi (monde en ligne ou session avec code).
+  Pour l'arrêter : même bouton ("Arrêter le joueur 2 local"), ou ferme sa fenêtre.
+  Il faut 2 manettes branchées (avec une seule : le joueur 1 joue au clavier).
 
 
 ANTI-TRICHE ET PROTECTION
@@ -231,6 +375,12 @@ ANTI-TRICHE ET PROTECTION
      boss, expérience impossible). Un joueur pris plusieurs fois devient SUSPECT : ses
      coups sont ignorés et le créateur est prévenu (il peut le bannir).
    - Le jeu surveille aussi le tien : mode debug, vie au-dessus du maximum... = plus aucun gain.
+   - PAS DE FAUSSES ACCUSATIONS : un bond dû au lag, un coup qui arrive en retard, une valeur
+     bizarre d'une fraction de seconde (en mourant noyé par exemple) sont simplement ignorés.
+     On n'est signalé que pour des choses vraiment impossibles.
+   - BOTS : seul le créateur peut en ajouter ; les bots d'un autre joueur sont invisibles et
+     sans effet dans le monde en ligne. Les anciennes versions du mod (avant 1.2) sont
+     ignorées (elles permettaient d'ajouter des bots).
    - Profil chiffré + scellé (un fichier modifié est refusé), gains plafonnés.
    - Un joueur banni est ignoré par tous les autres jeux et ne peut plus revenir.
 
@@ -253,7 +403,9 @@ EN CAS DE PROBLÈME
   - Antivirus (Avast, AVG...) : s'il bloque Jak3Online.exe, ajoute une exception
     pour le dossier data\online.
   - Tout le monde doit avoir la MÊME version du mod.
+  - Journal du programme : data\online\Jak3Online.log (utile pour signaler un problème).
   - Tests intégrés : Jak3Online.exe --selftest / --stress / --relaytest / --e2e / --mondetest
-    (bancs à deux jeux : --final, --partout)
+    (bancs à deux jeux : --final, --partout, --coop, --maisons, --maj12b, --maj12e,
+    --j2local, --maj13b, --coll ; un seul jeu : --maj13, --events13)
   - Recompiler le programme : src\build.bat
 

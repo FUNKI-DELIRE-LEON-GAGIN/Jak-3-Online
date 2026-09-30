@@ -130,6 +130,8 @@ namespace Jak3Online
         uint warnSeq;
         string warnText = "";
         DateTime lastVersionPublish = DateTime.MinValue;
+        uint myHouseOwner;                               // maison ou je suis (proprietaire ; 0 = dehors)
+        DateTime lastHouseMsg = DateTime.MinValue;
         bool versionWarned;
         readonly Dictionary<uint, double[]> lastSeen = new Dictionary<uint, double[]>();   // id -> x, y, z, t(ms)
         readonly Dictionary<uint, DateTime> lastState = new Dictionary<uint, DateTime>();
@@ -267,7 +269,8 @@ namespace Jak3Online
             float x = BitConverter.ToSingle(st, 12), y = BitConverter.ToSingle(st, 16), z = BitConverter.ToSingle(st, 20);
             float hp = BitConverter.ToSingle(st, 24);
             long now = Profil.NowMs();
-            if (float.IsNaN(x) || float.IsNaN(y) || float.IsNaN(z) || float.IsNaN(hp)) { Strike(id, T("donnees invalides", "invalid data")); return; }
+            // valeur invalide : un instant de mort (noyade...) ou un bug, pas une triche -> on l'ignore
+            if (float.IsNaN(x) || float.IsNaN(y) || float.IsNaN(z) || float.IsNaN(hp) || float.IsInfinity(x) || float.IsInfinity(y) || float.IsInfinity(z)) return;
             if (hp > 40f) Strike(id, T("points de vie impossibles", "impossible health"));
             double[] last;
             lock (lk)
@@ -293,13 +296,15 @@ namespace Jak3Online
                     {
                         List<double[]> q;
                         if (!speedWin.TryGetValue(id, out q)) { q = new List<double[]>(); speedWin[id] = q; }
-                        if (d < 150) q.Add(new double[] { now, d });
+                        // (teleportations, reapparitions, tremplins des parcours : un bond instantane ne compte pas)
+                        if (d / dt < 400.0) q.Add(new double[] { now, d });
                         q.RemoveAll(e => now - e[0] > 3000);
                         double sum = 0;
                         foreach (double[] e in q) sum += e[1];
-                        if (sum > 100.0 * 3.0) { strike = true; q.Clear(); }
+                        if (sum > 150.0 * 3.0) { strike = true; q.Clear(); }
                     }
-                    if (strike) Strike(id, T("vitesse impossible", "impossible speed"));
+                    // (un joueur qui rame a des bonds de position : on le note seulement, sans l'accuser)
+                    if (strike) L("anti-triche (info) : vitesse tres elevee pour " + NameOf(id) + " (lag probable)");
                 }
             }
             if (last[3] < 0 || (now - (long)last[3]) > 250)
@@ -317,7 +322,9 @@ namespace Jak3Online
             if (m.Suspect || m.BadVersion) return false;
             // cadence : 8 coups par seconde au plus
             if ((DateTime.UtcNow - m.LastHitFrom).TotalMilliseconds > 1000) { m.LastHitFrom = DateTime.UtcNow; m.HitCount = 0; }
-            if (++m.HitCount > 8) { Strike(from, T("cadence de tir impossible", "impossible fire rate")); return false; }
+            // au-dela de 30 coups / s le coup est ignore ; on ne signale le joueur que si c'est enorme
+            // (un paquet de coups arrive d'un bloc apres du lag : ce n'est pas une triche)
+            if (++m.HitCount > 30) { if (m.HitCount == 90) Strike(from, T("cadence de tir impossible", "impossible fire rate")); return false; }
             // distance : le tireur doit etre a portee
             double[] last;
             float x, y, z;
@@ -326,7 +333,9 @@ namespace Jak3Online
             {
                 double dx = x - last[0], dy = y - last[1], dz = z - last[2];
                 double d = Math.Sqrt(dx * dx + dy * dy + dz * dz) / 4096.0;
-                if (d > 140) { Strike(from, T("coup tire de trop loin", "hit from too far")); return false; }
+                // trop loin : coup ignore (position en retard, teleportation...) ; signale seulement si
+                // c'est impossible meme avec du lag
+                if (d > 140) { if (d > 1500) Strike(from, T("coup tire de trop loin", "hit from too far")); return false; }
             }
             return true;
         }
@@ -355,6 +364,13 @@ namespace Jak3Online
             if (SessionId == 0) return;
             if (IsCreateur && InWorld && (DateTime.UtcNow - lastVersionPublish).TotalSeconds > 300) PublishVersion();
             CheckMyVersion();
+            ClockTick();
+            // maison : rappel regulier (pour les joueurs arrives apres)
+            if (myHouseOwner != 0 && (DateTime.UtcNow - lastHouseMsg).TotalSeconds > 5)
+            {
+                SendMsg(MSG_HOUSE, 0, BitConverter.GetBytes(myHouseOwner));
+                lastHouseMsg = DateTime.UtcNow;
+            }
         }
 
         public bool TestSelfCheat { get { return selfCheat; } }

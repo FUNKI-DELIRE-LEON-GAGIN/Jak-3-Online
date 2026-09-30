@@ -37,7 +37,7 @@ namespace Jak3Online
     // ------------------------------------------------------------------------
     static class Proto
     {
-        public const int Version = 3;
+        public const int Version = 4;
         public const int DefaultPort = 27015;
         public const int StateSize = 80;
         public const int MaxPlayersPerSession = 100;
@@ -119,6 +119,10 @@ namespace Jak3Online
                 }
             }
             if (sb.Length == 0) return "Joueur";
+            // noms reserves : personne ne peut se faire passer pour l'hote, le createur ou un admin
+            string low = sb.ToString().ToLowerInvariant().Replace("_", "").Replace("-", "").Replace(".", "").Replace("0", "o").Replace("1", "i").Replace("3", "e");
+            foreach (string bad in new string[] { "host", "hote", "createur", "creator", "admin", "modo", "moderat", "serveur", "server", "system", "officiel", "official" })
+                if (low.Contains(bad)) return "Joueur";
             return sb.ToString();
         }
 
@@ -911,7 +915,7 @@ namespace Jak3Online
         public const int PoseRx = 0x2610, PoseSlot = 3104, PoseTail = 3088; // poses des joueurs dans game-in.bin
 
         public const int NET_OFFLINE = 0, NET_CONNECTING = 1, NET_LOBBY = 2, NET_SESSION = 3;
-        public const int REQ_CREATE = 1, REQ_JOIN_ID = 2, REQ_JOIN_CODE = 3, REQ_LEAVE = 4, REQ_LIST = 5, REQ_SETTINGS = 6, REQ_NAME = 7, REQ_GETSAVE = 8, REQ_SAVESYNC = 9, REQ_ADDBOT = 10, REQ_JOIN_WORLD = 11;
+        public const int REQ_CREATE = 1, REQ_JOIN_ID = 2, REQ_JOIN_CODE = 3, REQ_LEAVE = 4, REQ_LIST = 5, REQ_SETTINGS = 6, REQ_NAME = 7, REQ_GETSAVE = 8, REQ_SAVESYNC = 9, REQ_ADDBOT = 10, REQ_JOIN_WORLD = 11, REQ_LOCALJ2 = 12;
         public const int EV_HIT = 1, EV_DIED = 2, EV_KILL = 3;
 
     }
@@ -1792,10 +1796,16 @@ namespace Jak3Online
 
         // LA session publique : on cherche MONDE1, MONDE2... ; on rejoint la premiere qui a
         // de la place, ou on la cree si personne n'y est.
+        // une seule recherche de la session publique a la fois (les demandes en double
+        // faisaient quitter / recreer la session en boucle)
+        int worldStarting;
         void StartWorld()
         {
+            if (Interlocked.CompareExchange(ref worldStarting, 1, 0) != 0) return;
             Thread t = new Thread(delegate ()
             {
+              try
+              {
                 for (int k = 1; k <= 20 && !closed; k++)
                 {
                     string c = Proto.WorldPrefix + k;
@@ -1848,6 +1858,8 @@ namespace Jak3Online
                     }
                 }
                 Emit(new PacketWriter(Proto.S_ERROR).U8(Proto.E_FULL).ToArray());
+              }
+              finally { Interlocked.Exchange(ref worldStarting, 0); }
             });
             t.IsBackground = true;
             t.Start();
@@ -2197,8 +2209,8 @@ namespace Jak3Online
                             my = BitConverter.ToSingle(myState, 16);
                             mz = BitConverter.ToSingle(myState, 20);
                         }
-                        // etat : 12 fois par seconde, dans la zone ou je suis
-                        if (fresh && (now - lastState).TotalMilliseconds >= 80)
+                        // etat : 18 fois par seconde, dans la zone ou je suis (vehicules plus fluides)
+                        if (fresh && (now - lastState).TotalMilliseconds >= 55)
                         {
                             lastState = now;
                             UpdateCells(mx, mz);
@@ -2329,6 +2341,8 @@ namespace Jak3Online
             c.ServerAddress = owner.ServerAddress;
             c.French = owner.French;
             c.WantedName = "Bot" + n;
+            c.IsBot = true;
+            c.BotOfCreateur = owner.IsCreateur;
             c.OnGameEvent = delegate (GameEvent e)
             {
                 if (e.Kind != Shm.EV_HIT) return;
@@ -2478,6 +2492,12 @@ namespace Jak3Online
 
         public void AddBot()
         {
+            if (!IsCreateur) { PushFeed(T("Les bots de test sont reserves au createur", "Test bots are for the creator only")); return; }
+            AddBotNow();
+        }
+
+        public void AddBotNow()
+        {
             if (SessionId == 0) { PushFeed(T("Creez ou rejoignez d'abord une session", "Create or join a session first")); return; }
             lock (bots)
             {
@@ -2529,6 +2549,20 @@ namespace Jak3Online
         readonly Dictionary<uint, string> names = new Dictionary<uint, string>();
         List<SessionEntry> sessionList = new List<SessionEntry>();
         List<PlayerEntry> playerList = new List<PlayerEntry>();
+        List<PlayerEntry> rawPlayerList = new List<PlayerEntry>();
+
+        // liste des joueurs sans les ignores (ancienne version, bot refuse, banni...)
+        void RefilterPlayers()
+        {
+            lock (lk)
+            {
+                List<PlayerEntry> list = new List<PlayerEntry>();
+                foreach (PlayerEntry e in rawPlayerList) if (e.Id == MyId || !IsIgnored(e.Id)) list.Add(e);
+                playerList = list;
+                SessionCount = list.Count;
+                listsDirty = true;
+            }
+        }
         bool listsDirty = true;
         readonly Queue<GameEvent> inEvents = new Queue<GameEvent>();
         readonly Queue<string> feed = new Queue<string>();
@@ -2550,6 +2584,30 @@ namespace Jak3Online
         void L(string s)
         {
             if (Log != null) Log(s);
+            LogFileLine(s);
+        }
+
+        // journal dans un fichier, pour comprendre les problemes (data\online\Jak3Online.log, 2 Mo max)
+        public string LogFile;
+        readonly object logLk = new object();
+        void LogFileLine(string s)
+        {
+            string f = LogFile;
+            if (f == null) return;
+            try
+            {
+                lock (logLk)
+                {
+                    FileInfo fi = new FileInfo(f);
+                    if (fi.Exists && fi.Length > 2000000)
+                    {
+                        try { File.Delete(f + ".ancien"); } catch (Exception) { }
+                        File.Move(f, f + ".ancien");
+                    }
+                    File.AppendAllText(f, DateTime.Now.ToString("dd/MM HH:mm:ss ") + s + Environment.NewLine);
+                }
+            }
+            catch (Exception) { }
         }
 
         // langue des textes : celle du jeu (ou celle choisie dans la fenetre)
@@ -2568,6 +2626,9 @@ namespace Jak3Online
             if (UseBridge)
             {
                 bridge = new FileBridge(BridgeDir);
+                // une commande laissee par un ancien lancement ne doit pas etre rejouee par le jeu
+                try { bridge.WriteU32(Shm.TestSeq, 0); bridge.WriteU32(Shm.TestArg, 0); } catch (Exception) { }
+                testSeq = (uint)(Environment.TickCount & 0x3fffffff) | 1u;
                 Thread b = new Thread(BridgeLoop);
                 b.IsBackground = true;
                 b.Name = "bridge";
@@ -2598,8 +2659,11 @@ namespace Jak3Online
 
         public bool WantConnected { get { return wantConnected; } }
 
+        public void PushFeedPublic(string s) { PushFeed(s); }
+
         void PushFeed(string s)
         {
+            LogFileLine("[jeu] " + s);
             lock (lk)
             {
                 foreach (string part in Proto.GameLines(s, 60)) feed.Enqueue(part);
@@ -2620,6 +2684,7 @@ namespace Jak3Online
                 remotes.Clear();
                 for (int i = 0; i < slots.Length; i++) slots[i] = null;
                 playerList = new List<PlayerEntry>();
+                rawPlayerList = new List<PlayerEntry>();
                 inEvents.Clear();
                 listsDirty = true;
             }
@@ -2846,6 +2911,8 @@ namespace Jak3Online
                             HostId = host;
                             SessionCount = count;
                         }
+                        // sans les joueurs ignores (ancienne version, bot refuse...)
+                        if (!isNew) RefilterPlayers();
                         NetState = Shm.NET_SESSION;
                         rejoinCode = code;
                         Status = T("En session ", "In session ") + code;
@@ -2897,11 +2964,10 @@ namespace Jak3Online
                         }
                         lock (lk)
                         {
-                            playerList = list;
+                            rawPlayerList = list;
                             foreach (PlayerEntry e in list) names[e.Id] = e.Name;
-                            SessionCount = n;
-                            listsDirty = true;
                         }
+                        RefilterPlayers();
                         break;
                     }
                 case Proto.S_STATES:
@@ -3007,7 +3073,7 @@ namespace Jak3Online
                             case Proto.F_LEFT: msg = a + T(" a quitte la session", " left the session"); break;
                             case Proto.F_KILLED: msg = a + T(" a elimine ", " eliminated ") + b; break;
                             case Proto.F_DIED: msg = a + T(" est mort", " died"); break;
-                            case Proto.F_HOST: msg = a + T(" est maintenant l'hote", " is now the host"); break;
+                            case Proto.F_HOST: if (!InWorld) msg = a + T(" est maintenant l'hote", " is now the host"); break;
                             case Proto.F_PVP: msg = T("PvP ", "PvP ") + (v != 0 ? T("active", "enabled") : T("desactive", "disabled")) + T(" par ", " by ") + a; break;
                             case Proto.F_VISIBILITY: msg = T("Session maintenant ", "Session is now ") + (v != 0 ? T("publique", "public") : T("privee", "private")); break;
                         }
@@ -3242,10 +3308,14 @@ namespace Jak3Online
                     Send(new PacketWriter(Proto.C_LIST).ToArray());
                     break;
                 case Shm.REQ_SETTINGS:
+                    if (InWorld && !IsCreateur) { PushFeed(T("Reserve au createur dans le monde en ligne", "Creator only in the online world")); break; }
                     Send(new PacketWriter(Proto.C_SETTINGS).U8((int)(arg & 3)).ToArray());
                     break;
                 case Shm.REQ_ADDBOT:
                     AddBot();
+                    break;
+                case Shm.REQ_LOCALJ2:
+                    LocalJ2Request((int)arg);
                     break;
                 case Shm.REQ_GETSAVE:
                     if (SessionId == 0 || HostId == MyId) { PushFeed(T("Rejoignez d'abord la session d'un hote", "Join a host session first")); break; }
@@ -3536,7 +3606,7 @@ namespace Jak3Online
                 PutStr(st, 16, SessionId != 0 ? SessionCode : "", 8);
                 PutU32(st, 24, (uint)(SessionId != 0 ? SessionCount : 0));
                 PutU32(st, 28, (uint)(SessionId != 0 ? SessionMax : 0));
-                PutU32(st, 32, SessionPvp && SessionId != 0 ? 1u : 0u);
+                PutU32(st, 32, SessionId != 0 && (InWorld || SessionPvp) ? 1u : 0u);
                 bridge.Write(Shm.NetState, st, st.Length);
 
                 byte[] msg = new byte[80];
@@ -3581,7 +3651,10 @@ namespace Jak3Online
                     string nm;
                     if (!names.TryGetValue(rm.Id, out nm)) nm = "...";
                     PutStr(rem, o + 80, nm, 16);
-                    Buffer.BlockCopy(rs, 64, rem, o + 96, 16); // niveau
+                    // maisons : on ne voit que les joueurs de la meme maison (niveau inconnu = cache)
+                    MemberInfo hmi;
+                    if ((members.TryGetValue(rm.Id, out hmi) ? hmi.HouseOwner : 0u) != myHouseOwner) PutStr(rem, o + 96, "ow-ailleurs", 16);
+                    else Buffer.BlockCopy(rs, 64, rem, o + 96, 16); // niveau
                 }
                 // poses (squelettes) des joueurs visibles
                 for (int s = 0; s < slots.Length; s++)
@@ -3797,7 +3870,7 @@ namespace Jak3Online
             startHidden = hidden;
             Text = W("Jak 3 En Ligne");
             Width = 660;
-            Height = 640;
+            Height = 674;
             StartPosition = FormStartPosition.CenterScreen;
             Font = new Font("Segoe UI", 9f);
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch (Exception) { }
@@ -3867,6 +3940,8 @@ namespace Jak3Online
             btnWorld.Click += delegate { client.UiJoinWorld(); };
             Controls.Add(btnWorld);
             Button btnBot = new Button();
+            btnBotUi = btnBot;
+            btnBot.Visible = false;
             btnBot.Text = W("+ Bot de test");
             btnBot.SetBounds(500, y - 1, 120, 26);
             btnBot.Click += delegate { client.AddBot(); };
@@ -3876,6 +3951,27 @@ namespace Jak3Online
             btnLeave.SetBounds(360, y - 1, 130, 26);
             btnLeave.Click += delegate { client.UiLeave(); };
             Controls.Add(btnLeave);
+            y += 34;
+            // joueur 2 local : 2e fenetre du jeu avec une 2e manette (comme un ecran partage)
+            btnJ2 = new Button();
+            btnJ2.SetBounds(12, y - 1, 260, 26);
+            btnJ2.Click += delegate { client.LocalJ2Request(2); };
+            Controls.Add(btnJ2);
+            AddLabel(W("Manette J2 :"), 282, y + 3);
+            cboPad = new ComboBox();
+            cboPad.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboPad.Items.Add(W("Automatique"));
+            for (int k = 1; k <= 4; k++) cboPad.Items.Add(W("Manette ") + k);
+            cboPad.SelectedIndex = 0;
+            cboPad.SetBounds(370, y, 110, 23);
+            cboPad.SelectedIndexChanged += delegate { LocalJ2.PadWanted = cboPad.SelectedIndex - 1; };
+            Controls.Add(cboPad);
+            CheckBox chkSide = new CheckBox();
+            chkSide.Text = W("Cote a cote");
+            chkSide.Checked = true;
+            chkSide.SetBounds(492, y, 140, 24);
+            chkSide.CheckedChanged += delegate { LocalJ2.SideBySide = chkSide.Checked; };
+            Controls.Add(chkSide);
             y += 34;
 
             AddLabel(W("Joueurs de la session :"), 12, y);
@@ -3924,7 +4020,9 @@ namespace Jak3Online
             tray.DoubleClick += delegate { ShowWindow(); };
 
             LoadIni();
+            DesktopShortcutOnce();
             client.Log = QueueLog;
+            client.LogFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Jak3Online.log");
             client.OnNameChanged = delegate (string n)
             {
                 try
@@ -4096,6 +4194,13 @@ namespace Jak3Online
                 lines.Add("langue=" + (cboLang.SelectedIndex == 1 ? "fr" : cboLang.SelectedIndex == 2 ? "en" : "auto"));
                 lines.Add("auto=" + (autoConnect ? "1" : "0"));
                 if (bridgeOverride != null) lines.Add("pont=" + bridgeOverride);
+                // reperes des actions faites une seule fois (langue au premier lancement, raccourci)
+                if (File.Exists(iniPath))
+                    foreach (string old in File.ReadAllLines(iniPath))
+                    {
+                        string t = old.Trim().ToLowerInvariant();
+                        if ((t == "langue_jeu_init=1" || t == "raccourci=1") && !lines.Contains(t)) lines.Add(t);
+                    }
                 File.WriteAllLines(iniPath, lines.ToArray());
             }
             catch (Exception) { }
@@ -4178,6 +4283,13 @@ namespace Jak3Online
         void LangFirstRun()
         {
             if (langInitState == 1) return;
+            if (langInitState == 2)
+            {
+                // commande neutre : le jeu relit la derniere commande a chaque demarrage, il ne doit
+                // pas remettre la langue de Windows a chaque fois
+                if ((DateTime.UtcNow - langAttachSince).TotalSeconds > 10) { client.TestCommand(999); langInitState = 1; }
+                return;
+            }
             if (langInitState == -1)
             {
                 langInitState = 0;
@@ -4194,12 +4306,45 @@ namespace Jak3Online
             if (langAttachSince == DateTime.MinValue) { langAttachSince = DateTime.UtcNow; return; }
             if ((DateTime.UtcNow - langAttachSince).TotalSeconds < 8) return;
             client.TestCommand(330 + Lang.FromCulture());
-            langInitState = 1;
+            langInitState = 2;
             try { if (iniPath != null) File.AppendAllText(iniPath, Environment.NewLine + "langue_jeu_init=1" + Environment.NewLine); } catch (Exception) { }
         }
 
+        // premier lancement : raccourci "Jak 3 Online" sur le bureau (une seule fois : s'il est
+        // supprime, il n'est pas recree)
+        void DesktopShortcutOnce()
+        {
+            try
+            {
+                if (iniPath != null && File.Exists(iniPath))
+                    foreach (string line in File.ReadAllLines(iniPath))
+                        if (line.Trim().ToLowerInvariant() == "raccourci=1") return;
+                string desk = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                string lnk = Path.Combine(desk, "Jak 3 Online.lnk");
+                if (!File.Exists(lnk))
+                {
+                    Type t = Type.GetTypeFromProgID("WScript.Shell");
+                    object sh = Activator.CreateInstance(t);
+                    object sc = t.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, sh, new object[] { lnk });
+                    Type st = sc.GetType();
+                    st.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, sc, new object[] { Application.ExecutablePath });
+                    st.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, sc, new object[] { Path.GetDirectoryName(Application.ExecutablePath) });
+                    st.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, sc, new object[] { "Jak 3 Online : a lancer avant le jeu (reseau, boutique, joueurs)" });
+                    st.InvokeMember("IconLocation", System.Reflection.BindingFlags.SetProperty, null, sc, new object[] { Application.ExecutablePath + ",0" });
+                    st.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, sc, null);
+                }
+                if (iniPath != null) File.AppendAllText(iniPath, Environment.NewLine + "raccourci=1" + Environment.NewLine);
+            }
+            catch (Exception) { }
+        }
+
+        Button btnBotUi, btnJ2;
+        ComboBox cboPad;
+
         void RefreshUi()
         {
+            if (btnBotUi != null) btnBotUi.Visible = client.IsCreateur;
+            if (btnJ2 != null) btnJ2.Text = client.LocalJ2Running ? W("Arreter le joueur 2 local") : W("+ Joueur 2 local (2e manette)");
             LangFirstRun();
             lock (pendingLog)
             {
@@ -4262,6 +4407,7 @@ namespace Jak3Online
             }
             SaveIni();
             tray.Visible = false;
+            client.StopLocalJ2();
             client.Stop();
             if (server != null) server.Stop();
             base.OnFormClosing(e);
@@ -4582,7 +4728,7 @@ namespace Jak3Online
             if (Environment.GetEnvironmentVariable("JAK3ONLINE_E2E_BOTS") == "1")
             {
                 int nb = int.Parse(Environment.GetEnvironmentVariable("JAK3ONLINE_E2E_NBOTS") ?? "8");
-                for (int k = 0; k < nb; k++) a.AddBot();
+                for (int k = 0; k < nb; k++) a.AddBotNow();
                 Thread.Sleep(15000);
                 Console.WriteLine("   8 bots : avatars " + G2(r, 88) + " squelette " + G2(r, 90) + " pieces " + G2(r, 91));
             }
@@ -4723,7 +4869,7 @@ namespace Jak3Online
             }, 90000));
             Thread.Sleep(6000);
             Diag(a, "ville");
-            for (int k = 0; k < 8; k++) a.AddBot();
+            for (int k = 0; k < 8; k++) a.AddBotNow();
             Check("les 8 bots rejoignent", Wait(() => a.SessionCount == 9, 30000));
             Thread.Sleep(8000);
             Diag(a, "bots");
@@ -5167,7 +5313,7 @@ namespace Jak3Online
             }
             for (int i = 0; i < Client.Maps.Length; i++)
             {
-                if (!string.IsNullOrEmpty(only) && only != i.ToString()) continue;
+                if (!string.IsNullOrEmpty(only) && ("," + only + ",").IndexOf("," + i + ",") < 0) continue;
                 Client.ParkourMap pm = Client.Maps[i];
                 a.TestCommand(400 + i);
                 Check("carte " + pm.NameFr + " chargee", Wait(() => Lvl(a) == pm.Level && Loaded(a) && MapOf(a) == i, 150000));
@@ -5192,7 +5338,9 @@ namespace Jak3Online
                     for (int k = 0; k < 40; k++) { Thread.Sleep(100); float yy = PosOf(a)[1]; ymax = Math.Max(ymax, yy); if (k % 2 == 0) traj.Append(((yy - y0) / 4096f).ToString("0.0") + " "); if (k == 3 || k == 7 || k == 12) ShotOf(g1.Id, "c" + i + "-tremplin" + k); }
                     Console.WriteLine("   hauteur apres le tremplin : " + traj);
                     Console.WriteLine("   tremplin : +" + ((ymax - y0) / 4096f).ToString("0.0") + " m");
-                    Check(pm.NameFr + " : le tremplin propulse Jak", ymax - y0 > 8f * 4096f);
+                    // (certains tremplins envoient vers une plateforme plus basse : saut court)
+                    if (Gb(a, 88 + 25) == 0) Console.WriteLine("   (pas de tremplin sur cette carte)");
+                    else Check(pm.NameFr + " : le tremplin propulse Jak", ymax - y0 > 1.5f * 4096f);
                     Thread.Sleep(2500);
                     a.TestCommand(443); Thread.Sleep(1500);
                     Check(pm.NameFr + " : point de passage atteint", Gb(a, 106) == 1);
@@ -5511,20 +5659,22 @@ namespace Jak3Online
             Check("monde en ligne dans les deux jeux", Wait(() => (UiF(a) & 2) != 0 && (UiF(b) & 2) != 0 && Loaded(a) && Loaded(b) && Lvl(a).StartsWith("cty") && Lvl(b).StartsWith("cty"), 240000));
             Thread.Sleep(10000);
             b.TestCommand(84); Thread.Sleep(3000);
-            string[] nm = { "jak", "keira", "jak2", "jak1hd", "jak4", "tess", "daxter" };
-            int[] item = { -1, 75, 54, 55, 56, 57, 58 };
+            string[] nm = { "jak", "keira", "jak2", "jak1hd", "jak4", "tess", "daxter", "ashelin", "torn", "sig", "samos" };
+            int[] item = { -1, 75, 54, 55, 56, 57, 58, 105, 106, 107, 108 };
             int from = 1;
             int.TryParse(Environment.GetEnvironmentVariable("JAK3ONLINE_PERSOS_FROM") ?? "1", out from);
-            for (int k = Math.Max(1, from); k <= 6; k++)
+            for (int k = Math.Max(1, from); k <= 10; k++)
             {
                 long m0 = a.TestMoney;
-                a.TestCommand(100 + item[k]); Thread.Sleep(2500);
+                a.TestCommand(item[k] < 96 ? 100 + item[k] : 500 + item[k] - 96); Thread.Sleep(2500);
                 Check(nm[k] + " achete (" + (m0 - a.TestMoney) + " orbes)", a.TestMoney < m0);
-                a.TestCommand(460 + k);
+                a.TestCommand(590 + k);
                 Check("J1 joue " + nm[k], Wait(() => Gb(a, 107) == k, 20000));
-                if (k < 6) Check("J2 voit " + nm[k] + " sur J1", Wait(() => Gb(b, 108) == k, 15000));
+
+                if (k != 6) Check("J2 voit " + nm[k] + " sur J1", Wait(() => Gb(b, 108) == k, 15000));
                 Thread.Sleep(3000);
                 ShotOf(g1.Id, "q" + k + "-" + nm[k] + "-moi");
+                b.TestCommand(84); Thread.Sleep(2000);
                 b.TestCommand(470); Thread.Sleep(2500);
                 ShotOf(g2.Id, "q" + k + "-" + nm[k] + "-vu-par-j2");
                 a.TestCommand(84); Thread.Sleep(700);
@@ -5544,7 +5694,7 @@ namespace Jak3Online
             b.TestCommand(470); Thread.Sleep(2500);
             ShotOf(g2.Id, "q7-jak-retour-vu-par-j2");
             Profil pr = new Profil(dirA);
-            Check("personnages sauves dans le profil", pr.Owns(54) && pr.Owns(55) && pr.Owns(56) && pr.Owns(57) && pr.Owns(58));
+            Check("personnages sauves dans le profil", pr.Owns(54) && pr.Owns(55) && pr.Owns(56) && pr.Owns(57) && pr.Owns(58) && pr.Owns(105) && pr.Owns(108));
             // ---- ANTI-TRICHE : le createur peut (ADMIN), un joueur qui triche est expulse
             a.TestCommand(481); Thread.Sleep(1500);
             Check("le createur s'active l'invincibilite (ADMIN) et reste dans le monde", (Gb(a, 109) & 1) == 1 && a.InWorld);
@@ -5594,6 +5744,1048 @@ namespace Jak3Online
             a.Stop(); s.Stop();
             try { g1.Kill(); } catch (Exception) { }
             Console.WriteLine(fails == 0 ? "TEST VEHNOMS OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --coop : session privee a deux : tirs des autres, caisses / ennemis detruits, missions
+        public static int Coop()
+        {
+            const int port = 27993;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Thread.Sleep(8000);
+            Process g2 = StartGame(mod, sp, Path.Combine(sp, "data2"), "cfg2");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "Joueur1"; a.Ephemeral = true; a.ServerAddress = "127.0.0.1:" + port;
+            a.Log = m => Console.WriteLine("   [J1] " + m); a.Start(); a.Connect();
+            Client b = new Client(); b.BridgeDir = Path.Combine(sp, "data2", "online", "bridge"); b.WantedName = "Joueur2"; b.Ephemeral = true; b.ServerAddress = "127.0.0.1:" + port;
+            b.Log = m => Console.WriteLine("   [J2] " + m); b.Start(); b.Connect();
+            Check("les deux jeux sont detectes", Wait(() => a.GameAttached && b.GameAttached && a.NetState == Shm.NET_LOBBY && b.NetState == Shm.NET_LOBBY, 180000));
+            foreach (Process gp in new Process[] { g1, g2 }) { IntPtr w = WindowOf(gp.Id); if (w != IntPtr.Zero) ShowWindow(w, 7); }
+            Thread.Sleep(10000);
+            a.UiCreate(false, 100, true);
+            Check("session privee creee", Wait(() => a.SessionId != 0, 8000));
+            b.UiJoinCode(a.SessionCode);
+            Check("le joueur 2 rejoint", Wait(() => b.SessionId == a.SessionId, 8000));
+            DateTime la = DateTime.MinValue, lb = DateTime.MinValue;
+            Check("les deux parties sont chargees", Wait(() =>
+            {
+                if (!Loaded(a) && (DateTime.UtcNow - la).TotalSeconds > 20) { la = DateTime.UtcNow; a.TestCommand(1); }
+                if (!Loaded(b) && (DateTime.UtcNow - lb).TotalSeconds > 20) { lb = DateTime.UtcNow; b.TestCommand(4); }
+                return Loaded(a) && Loaded(b);
+            }, 500000));
+            Thread.Sleep(6000);
+            GoTo(a, b, 34, 34, l => l.StartsWith("cty"), l => l.StartsWith("cty"), "les deux au port de Haven");
+            b.TestCommand(84); Thread.Sleep(4000);
+            Check("J2 voit J1", Gb(b, 90) == 1);
+            // TIRS
+            int s0 = Gb(b, 112);
+            for (int k = 0; k < 6; k++) { a.TestCommand(482); Thread.Sleep(450); if (k == 2) { b.TestCommand(470); } if (k == 4) ShotOf(g2.Id, "c1-tir-de-j1-vu-par-j2"); }
+            Check("J2 voit les tirs de J1 (" + (Gb(b, 112) - s0) + ")", Gb(b, 112) - s0 >= 3);
+            // CAISSES / ENNEMIS
+            int sent0 = Gb(a, 110), got0 = Gb(b, 111);
+            for (int k = 0; k < 4; k++) { a.TestCommand(483); Thread.Sleep(1500); }
+            Thread.Sleep(2000);
+            Console.WriteLine("   coop : J1 envoie " + (Gb(a, 110) - sent0) + ", J2 applique " + (Gb(b, 111) - got0));
+            Check("J1 detruit des caisses / ennemis et le signale", Gb(a, 110) - sent0 >= 1);
+            Check("J2 les detruit aussi", Gb(b, 111) - got0 >= 1);
+            ShotOf(g1.Id, "c2-j1-apres-destruction"); ShotOf(g2.Id, "c2-j2-apres-destruction");
+            // MISSIONS
+            sent0 = Gb(a, 110); got0 = Gb(b, 111);
+            a.TestCommand(484); Thread.Sleep(3000);
+            Check("J1 valide une etape de mission, J2 la recoit", Gb(a, 110) - sent0 >= 1 && Gb(b, 111) - got0 >= 1);
+            // dans l'autre sens
+            sent0 = Gb(b, 110); got0 = Gb(a, 111);
+            b.TestCommand(484); Thread.Sleep(2500);
+            Check("J2 valide aussi une etape, J1 la recoit", Gb(b, 110) - sent0 >= 1 && Gb(a, 111) - got0 >= 1);
+            Check("les jeux tournent", a.GameAttached && b.GameAttached && !g1.HasExited && !g2.HasExited);
+            a.Stop(); b.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            try { g2.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST COOP OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --maisons : boutique complete, maisons (achat, aller, inviter, accepter, qui voit qui), style
+        public static int Maisons()
+        {
+            const int port = 27991;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilM");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Thread.Sleep(8000);
+            Process g2 = StartGame(mod, sp, Path.Combine(sp, "data2"), "cfg2");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Log = m => Console.WriteLine("   [J1] " + m); a.Start(); a.Connect();
+            Client b = new Client(); b.BridgeDir = Path.Combine(sp, "data2", "online", "bridge"); b.WantedName = "Joueur2"; b.Ephemeral = true; b.ServerAddress = "127.0.0.1:" + port;
+            b.Log = m => Console.WriteLine("   [J2] " + m); b.Start(); b.Connect();
+            Check("les deux jeux sont detectes", Wait(() => a.GameAttached && b.GameAttached && a.NetState == Shm.NET_LOBBY && b.NetState == Shm.NET_LOBBY, 180000));
+            foreach (Process gp in new Process[] { g1, g2 }) { IntPtr w = WindowOf(gp.Id); if (w != IntPtr.Zero) ShowWindow(w, 7); }
+            Thread.Sleep(15000);
+            a.TestSetXp(200000); a.TestSetMoney(60000);
+            b.TestSetXp(20000); b.TestSetMoney(8000);
+            a.UiJoinWorld(); Thread.Sleep(1500); b.UiJoinWorld();
+            Check("monde en ligne dans les deux jeux", Wait(() => (UiF(a) & 2) != 0 && (UiF(b) & 2) != 0 && Loaded(a) && Loaded(b) && Lvl(a).StartsWith("cty") && Lvl(b).StartsWith("cty"), 240000));
+            Thread.Sleep(10000);
+            // BOUTIQUE : toutes les rubriques (plus de limite de 40 lignes)
+            a.TestCommand(560); Thread.Sleep(1500);
+            Console.WriteLine("   boutique : " + Gb(a, 88 + 28) + " lignes, rubriques 0x" + Gb(a, 88 + 29).ToString("x"));
+            Check("boutique : plus de 40 lignes", Gb(a, 88 + 28) > 40);
+            Check("boutique : armes, Dark / Light Jak, maisons et style presents, personnages dans PERSOS seulement", Gb(a, 88 + 29) == 31);
+            a.TestCommand(73); Thread.Sleep(1500); ShotOf(g1.Id, "m0-boutique-haut"); a.TestCommand(61); Thread.Sleep(800);
+            // ACHATS : les 3 maisons + grosse tete (J1), une cabane (J2)
+            for (int k = 0; k < 4; k++) { a.TestCommand(500 + k); Thread.Sleep(1400); }
+            b.TestCommand(500); Thread.Sleep(1400);
+            Check("J1 achete la cabane, la villa et le chateau", a.Prof.Owns(96) && a.Prof.Owns(97) && a.Prof.Owns(98));
+            Check("J1 achete la grosse tete", a.Prof.Owns(99));
+            Check("J2 achete une cabane", b.Prof.Owns(96));
+            Thread.Sleep(1500);
+            ShotOf(g1.Id, "m1-grosse-tete");
+            // chacun dans SA cabane (meme carte, maisons differentes) : ils ne se voient pas
+            a.TestCommand(540); Thread.Sleep(600); b.TestCommand(540);
+            Check("J1 et J2 chacun dans sa cabane", Wait(() => MapOf(a) == 8 && MapOf(b) == 8 && Loaded(a) && Loaded(b), 150000));
+            Thread.Sleep(9000);
+            Console.WriteLine("   maison annoncee : J1 " + Gb(a, 88 + 27) + "  J2 " + Gb(b, 88 + 27) + "  (1 = la mienne, 2 = celle d'un autre)");
+            Check("chacun est dans sa propre maison", Gb(a, 88 + 27) == 1 && Gb(b, 88 + 27) == 1);
+            Check("maisons differentes : ils ne se voient pas", Gb(a, 90) == 0 && Gb(b, 90) == 0);
+            ShotOf(g1.Id, "m2-cabane-j1"); ShotOf(g2.Id, "m2-cabane-j2-seul");
+            // INVITATION : J1 invite J2, J2 accepte
+            a.TestCommand(545);
+            Check("J2 recoit l'invitation", Wait(() => Gb(b, 88 + 26) == 1, 8000));
+            Thread.Sleep(1000);
+            ShotOf(g2.Id, "m3-invitation-j2");
+            b.TestCommand(548);
+            Thread.Sleep(3000);
+            Check("J2 arrive chez J1", Wait(() => MapOf(b) == 8 && Loaded(b) && Gb(b, 88 + 27) == 2, 150000));
+            Check("dans la meme maison, ils se voient", Wait(() => Gb(a, 90) == 1 && Gb(b, 90) == 1, 20000));
+            Thread.Sleep(2000);
+            ShotOf(g1.Id, "m4-j1-voit-j2"); ShotOf(g2.Id, "m4-j2-chez-j1");
+            // la villa et le chateau
+            a.TestCommand(541);
+            Check("villa chargee", Wait(() => MapOf(a) == 9 && Loaded(a), 150000));
+            Thread.Sleep(8000); ShotOf(g1.Id, "m5-villa");
+            a.TestCommand(542);
+            Check("chateau charge", Wait(() => MapOf(a) == 10 && Loaded(a), 150000));
+            Thread.Sleep(8000); ShotOf(g1.Id, "m6-chateau");
+            // STYLE : couper la grosse tete
+            a.TestCommand(550); Thread.Sleep(2000); ShotOf(g1.Id, "m7-grosse-tete-coupee");
+            // retour au port
+            a.TestCommand(410);
+            Check("retour au port de Haven", Wait(() => MapOf(a) == -1 && Loaded(a) && Lvl(a).StartsWith("cty"), 150000));
+            Thread.Sleep(3000);
+            Check("hors de la maison : plus de maison annoncee", Wait(() => Gb(a, 88 + 27) == 0, 10000));
+            Check("les jeux tournent", a.GameAttached && b.GameAttached && !g1.HasExited && !g2.HasExited);
+            a.Stop(); b.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            try { g2.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST MAISONS OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --maj12b : bots reserves, onglets, accueil, achat a distance, panneau du Naughty Ottsel, vrais tirs, synchro du monde
+        public static int Maj12b()
+        {
+            const int port = 27990;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilB");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Thread.Sleep(8000);
+            Process g2 = StartGame(mod, sp, Path.Combine(sp, "data2"), "cfg2");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Log = m => Console.WriteLine("   [J1] " + m); a.Start(); a.Connect();
+            Client b = new Client(); b.BridgeDir = Path.Combine(sp, "data2", "online", "bridge"); b.WantedName = "Joueur2"; b.Ephemeral = true; b.ServerAddress = "127.0.0.1:" + port;
+            b.Log = m => Console.WriteLine("   [J2] " + m); b.Start(); b.Connect();
+            Check("les deux jeux sont detectes", Wait(() => a.GameAttached && b.GameAttached && a.NetState == Shm.NET_LOBBY && b.NetState == Shm.NET_LOBBY, 180000));
+            foreach (Process gp in new Process[] { g1, g2 }) { IntPtr w = WindowOf(gp.Id); if (w != IntPtr.Zero) ShowWindow(w, 7); }
+            Thread.Sleep(15000);
+            a.TestSetXp(200000); a.TestSetMoney(60000);
+            b.TestSetXp(20000); b.TestSetMoney(5000);
+            a.UiJoinWorld(); Thread.Sleep(1500); b.UiJoinWorld();
+            Check("monde en ligne dans les deux jeux", Wait(() => (UiF(a) & 2) != 0 && (UiF(b) & 2) != 0 && Loaded(a) && Loaded(b) && Lvl(a).StartsWith("cty") && Lvl(b).StartsWith("cty"), 240000));
+            Thread.Sleep(3000);
+            ShotOf(g2.Id, "b0-accueil-j2");
+            // BOTS : pas pour un joueur normal
+            b.AddBot(); Thread.Sleep(800);
+            Check("un joueur normal ne peut pas ajouter de bot", b.BotCount == 0);
+            // MENU : BOUTIQUE puis PERSOS
+            b.TestCommand(73); Thread.Sleep(1500); ShotOf(g2.Id, "b1-boutique");
+            b.TestCommand(62); Thread.Sleep(1200); ShotOf(g2.Id, "b2-persos");
+            b.TestCommand(61); Thread.Sleep(800);
+            // ACHAT A DISTANCE : Scatter Gun (60 orbes) -> 90
+            long m0 = b.TestMoney;
+            b.TestCommand(101); Thread.Sleep(1800);
+            Console.WriteLine("   achat a distance : " + (m0 - b.TestMoney) + " orbes (prix 60)");
+            Check("achat a distance : +50 %", b.Prof.Owns(1) && m0 - b.TestMoney == 90);
+            // LE NAUGHTY OTTSEL : panneau devant l'entree, prix normal dedans
+            a.TestCommand(182);
+            Thread.Sleep(9000);
+            ShotOf(g1.Id, "b3-panneau-ottsel");
+            a.TestCommand(68);
+            Check("J1 dans le Naughty Ottsel", Wait(() => Lvl(a).StartsWith("hiphog") && Loaded(a), 90000));
+            Thread.Sleep(4000);
+            long m1 = a.TestMoney;
+            a.TestCommand(102); Thread.Sleep(1800);
+            Console.WriteLine("   achat au Naughty Ottsel : " + (m1 - a.TestMoney) + " orbes (prix 120)");
+            Check("au Naughty Ottsel : prix normal", a.Prof.Owns(2) && m1 - a.TestMoney == 120);
+            ShotOf(g1.Id, "b4-dans-ottsel");
+            // VRAIS TIRS : J1 tire avec les 12 armes, J2 regarde
+            GoTo(a, b, 34, 34, l => l.StartsWith("cty"), l => l.StartsWith("cty"), "les deux au port de Haven");
+            b.TestCommand(84); Thread.Sleep(3000);
+            b.TestCommand(470); Thread.Sleep(800);
+            int seen0 = Gb(b, 112);
+            string[] armes = { "scatter", "wave", "plasmite", "blaster", "reflexor", "gyro", "vulcan", "arc", "needle", "peacemaker", "inverter", "supernova" };
+            for (int k = 0; k < 12; k++)
+            {
+                a.TestCommand(486 + k); Thread.Sleep(350);
+                ShotOf(g2.Id, "b5-tir-" + (26 + k) + "-" + armes[k]);
+                Thread.Sleep(900);
+            }
+            int seen = (Gb(b, 112) - seen0 + 256) % 256;
+            Console.WriteLine("   tirs vus par J2 : " + seen + " / 12");
+            Check("J2 voit les tirs des 12 armes", seen >= 12);
+            // SYNCHRO DU MONDE : J1 detruit caisses / ennemis, J2 aussi
+            int sent0 = Gb(a, 110), got0 = Gb(b, 111);
+            for (int k = 0; k < 4; k++) { a.TestCommand(483); Thread.Sleep(1500); }
+            Thread.Sleep(2000);
+            Console.WriteLine("   monde : J1 envoie " + ((Gb(a, 110) - sent0 + 256) % 256) + ", J2 applique " + ((Gb(b, 111) - got0 + 256) % 256));
+            Check("monde en ligne : ce que J1 detruit est detruit chez J2", (Gb(a, 110) - sent0 + 256) % 256 >= 1 && (Gb(b, 111) - got0 + 256) % 256 >= 1);
+            Check("les jeux tournent", a.GameAttached && b.GameAttached && !g1.HasExited && !g2.HasExited);
+            a.Stop(); b.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            try { g2.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST MAJ12B OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --maj12c : evenements au hasard (a peu de joueurs), MISSION, parcours sans planche, camera
+        public static int Maj12c()
+        {
+            const int port = 27989;
+            Environment.SetEnvironmentVariable("JAK3ONLINE_EVENTS_SOON", "1");
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilE");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Thread.Sleep(8000);
+            Process g2 = StartGame(mod, sp, Path.Combine(sp, "data2"), "cfg2");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Log = m => Console.WriteLine("   [J1] " + m); a.Start(); a.Connect();
+            Client b = new Client(); b.BridgeDir = Path.Combine(sp, "data2", "online", "bridge"); b.WantedName = "Joueur2"; b.Ephemeral = true; b.ServerAddress = "127.0.0.1:" + port;
+            b.Log = m => Console.WriteLine("   [J2] " + m); b.Start(); b.Connect();
+            Check("les deux jeux sont detectes", Wait(() => a.GameAttached && b.GameAttached && a.NetState == Shm.NET_LOBBY && b.NetState == Shm.NET_LOBBY, 180000));
+            foreach (Process gp in new Process[] { g1, g2 }) { IntPtr w = WindowOf(gp.Id); if (w != IntPtr.Zero) ShowWindow(w, 7); }
+            Thread.Sleep(15000);
+            a.TestSetXp(200000); a.TestSetMoney(60000);
+            b.TestSetXp(20000); b.TestSetMoney(5000);
+            a.UiJoinWorld(); Thread.Sleep(1500); b.UiJoinWorld();
+            Check("monde en ligne dans les deux jeux", Wait(() => (UiF(a) & 2) != 0 && (UiF(b) & 2) != 0 && Loaded(a) && Loaded(b) && Lvl(a).StartsWith("cty") && Lvl(b).StartsWith("cty"), 240000));
+            Thread.Sleep(4000);
+            ShotOf(g1.Id, "e0-camera-jak4");
+            // EVENEMENT AU HASARD : a 2 joueurs, seulement un petit (pluie d'orbes, double XP, zone, meteores)
+            Check("un evenement au hasard arrive", Wait(() => a.TestEventKind != 0, 90000));
+            int k0 = a.TestEventKind;
+            Console.WriteLine("   evenement au hasard : sorte " + k0);
+            Check("a 2 joueurs : pas de boss, tresor ni parcours", k0 == 2 || k0 == 4 || k0 == 5 || k0 == 8);
+            ShotOf(g1.Id, "e1-evenement-hasard");
+            Wait(() => a.TestEventState != 1, 150000);
+            Wait(() => a.TestEventKind == 0, 30000);
+            // MISSION : la mission 114 ; J2 la reussit en premier (par le vrai chemin du jeu)
+            a.TestStartEvent(9, 114);
+            Check("evenement MISSION chez les deux", Wait(() => a.TestEventKind == 9 && b.TestEventKind == 9, 8000));
+            Thread.Sleep(2500);
+            ShotOf(g2.Id, "e2-mission-j2");
+            long mb = b.TestMoney;
+            b.TestCommand(566);
+            Check("J2 reussit la mission en premier", Wait(() => a.TestEventState == 2 && a.TestEventWinner == b.MyId, 15000));
+            Check("J2 gagne 2000 orbes", Wait(() => b.TestMoney >= mb + 2000, 8000));
+            Thread.Sleep(1500);
+            ShotOf(g1.Id, "e3-mission-resultat-j1");
+            // PARCOURS : pas de planche
+            a.TestCommand(124); Thread.Sleep(1500);
+            a.TestCommand(567); Thread.Sleep(600);
+            Check("J1 a la planche au port", (Gb(a, 88 + 30) & 1) != 0);
+            a.TestCommand(401);
+            Check("carte Tour celeste chargee", Wait(() => MapOf(a) == 1 && Loaded(a), 150000));
+            Thread.Sleep(5000);
+            a.TestCommand(567); Thread.Sleep(600);
+            Console.WriteLine("   sur le parcours : pad30 = " + Gb(a, 88 + 30));
+            Check("sur un parcours : pas de planche", (Gb(a, 88 + 30) & 5) == 4);
+            ShotOf(g1.Id, "e4-parcours-camera");
+            a.TestCommand(410);
+            Check("retour au port", Wait(() => MapOf(a) == -1 && Loaded(a) && Lvl(a).StartsWith("cty"), 150000));
+            Thread.Sleep(3000);
+            a.TestCommand(567); Thread.Sleep(600);
+            Check("au port : la planche revient", (Gb(a, 88 + 30) & 5) == 1);
+            Check("les jeux tournent", a.GameAttached && b.GameAttached && !g1.HasExited && !g2.HasExited);
+            a.Stop(); b.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            try { g2.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST MAJ12C OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --maj12d : horloge du monde synchronisee, passager assis (voiture / moto), Hellcat
+        public static int Maj12d()
+        {
+            const int port = 27988;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilD");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Thread.Sleep(8000);
+            Process g2 = StartGame(mod, sp, Path.Combine(sp, "data2"), "cfg2");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Log = m => Console.WriteLine("   [J1] " + m); a.Start(); a.Connect();
+            Client b = new Client(); b.BridgeDir = Path.Combine(sp, "data2", "online", "bridge"); b.WantedName = "Joueur2"; b.Ephemeral = true; b.ServerAddress = "127.0.0.1:" + port;
+            b.Log = m => Console.WriteLine("   [J2] " + m); b.Start(); b.Connect();
+            Check("les deux jeux sont detectes", Wait(() => a.GameAttached && b.GameAttached && a.NetState == Shm.NET_LOBBY && b.NetState == Shm.NET_LOBBY, 180000));
+            foreach (Process gp in new Process[] { g1, g2 }) { IntPtr w = WindowOf(gp.Id); if (w != IntPtr.Zero) ShowWindow(w, 7); }
+            Thread.Sleep(15000);
+            a.TestSetXp(200000); a.TestSetMoney(60000);
+            b.TestSetXp(20000); b.TestSetMoney(5000);
+            a.UiJoinWorld(); Thread.Sleep(1500); b.UiJoinWorld();
+            Check("monde en ligne dans les deux jeux", Wait(() => (UiF(a) & 2) != 0 && (UiF(b) & 2) != 0 && Loaded(a) && Loaded(b) && Lvl(a).StartsWith("cty") && Lvl(b).StartsWith("cty"), 240000));
+            Thread.Sleep(5000);
+            // HEURE : J1 (l'autorite) passe a 20 h ; J2 doit suivre
+            a.TestCommand(569); Thread.Sleep(1500);
+            Console.WriteLine("   heures : J1 " + Gb(a, 88 + 31) / 10.0 + "  J2 " + Gb(b, 88 + 31) / 10.0);
+            Check("J2 prend l'heure du monde (20 h)", Wait(() => Math.Abs(Gb(b, 88 + 31) - Gb(a, 88 + 31)) <= 4, 45000));
+            Console.WriteLine("   heures : J1 " + Gb(a, 88 + 31) / 10.0 + "  J2 " + Gb(b, 88 + 31) / 10.0);
+            ShotOf(g2.Id, "d0-heure-j2");
+            // PASSAGER EN VOITURE : J1 conduit le Sand Shark, J2 monte a cote
+            GoTo(a, b, 34, 34, l => l.StartsWith("cty"), l => l.StartsWith("cty"), "les deux au port");
+            a.TestCommand(145); Thread.Sleep(1200);
+            a.TestCommand(245); Thread.Sleep(8000);
+            Check("J1 conduit", (Gflags(a) & 0x80) != 0);
+            b.TestCommand(84); Thread.Sleep(2500);
+            b.TestCommand(83); Thread.Sleep(3000);
+            double dc = Dist(PosOf(a), PosOf(b));
+            Console.WriteLine("   voiture : J2 passager " + ((Gflags(b) & 0x400) != 0) + "  visible " + ((Gflags(b) & 4) == 0) + "  a " + dc.ToString("0.00") + " m de J1");
+            Check("J2 est assis a cote (passager visible, 0.6 a 1.8 m)", (Gflags(b) & 0x400) != 0 && (Gflags(b) & 4) == 0 && dc > 0.6 && dc < 1.8);
+            ShotOf(g1.Id, "d1-voiture-j1"); ShotOf(g2.Id, "d1-voiture-j2");
+            b.TestCommand(83); Thread.Sleep(2000);
+            Check("J2 redescend", (Gflags(b) & 0x400) == 0);
+            a.TestCommand(70); Thread.Sleep(2500);
+            // PASSAGER A MOTO : derriere
+            a.TestCommand(151); Thread.Sleep(1200);
+            a.TestCommand(251); Thread.Sleep(8000);
+            Console.WriteLine("   moto : J1 conduit " + ((Gflags(a) & 0x80) != 0) + "  moto " + ((Gflags(a) & 0x800) != 0));
+            Check("J1 conduit une moto (reconnue)", (Gflags(a) & 0x80) != 0 && (Gflags(a) & 0x800) != 0);
+            b.TestCommand(84); Thread.Sleep(2500);
+            b.TestCommand(83); Thread.Sleep(3000);
+            double dm = Dist(PosOf(a), PosOf(b));
+            Console.WriteLine("   moto : J2 passager " + ((Gflags(b) & 0x400) != 0) + "  a " + dm.ToString("0.00") + " m de J1");
+            Check("J2 est assis derriere (0.7 a 1.8 m)", (Gflags(b) & 0x400) != 0 && dm > 0.7 && dm < 1.8);
+            ShotOf(g1.Id, "d2-moto-j1"); ShotOf(g2.Id, "d2-moto-j2");
+            b.TestCommand(83); Thread.Sleep(2000);
+            a.TestCommand(70); Thread.Sleep(2500);
+            Check("les jeux tournent", a.GameAttached && b.GameAttached && !g1.HasExited && !g2.HasExited);
+            a.Stop(); b.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            try { g2.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST MAJ12D OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --maj12e : vraies collisions avec les vehicules des autres (monter dessus, rentrer dedans),
+        // Hellcat pilotable partout, bots refuses
+        public static int Maj12e()
+        {
+            const int port = 27984;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilE");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Thread.Sleep(8000);
+            Process g2 = StartGame(mod, sp, Path.Combine(sp, "data2"), "cfg2");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Log = m => Console.WriteLine("   [J1] " + m); a.Start(); a.Connect();
+            Client b = new Client(); b.BridgeDir = Path.Combine(sp, "data2", "online", "bridge"); b.WantedName = "Joueur2"; b.Ephemeral = true; b.ServerAddress = "127.0.0.1:" + port;
+            b.Log = m => Console.WriteLine("   [J2] " + m); b.Start(); b.Connect();
+            Check("les deux jeux sont detectes", Wait(() => a.GameAttached && b.GameAttached && a.NetState == Shm.NET_LOBBY && b.NetState == Shm.NET_LOBBY, 180000));
+            foreach (Process gp in new Process[] { g1, g2 }) { IntPtr w = WindowOf(gp.Id); if (w != IntPtr.Zero) ShowWindow(w, 7); }
+            Thread.Sleep(15000);
+            a.TestSetXp(200000); a.TestSetMoney(80000);
+            b.TestSetXp(200000); b.TestSetMoney(80000);
+            a.UiJoinWorld(); Thread.Sleep(1500); b.UiJoinWorld();
+            Check("monde en ligne dans les deux jeux", Wait(() => (UiF(a) & 2) != 0 && (UiF(b) & 2) != 0 && Loaded(a) && Loaded(b) && Lvl(a).StartsWith("cty") && Lvl(b).StartsWith("cty"), 240000));
+            Thread.Sleep(5000);
+            // un bot d'un joueur normal est refuse dans le monde
+            b.AddBotNow(); Thread.Sleep(6000);
+            Check("bot d'un joueur normal : invisible dans le monde", a.SessionCount == 2);
+            b.RemoveBots(); Thread.Sleep(2000);
+            // au port de Haven (sol plat)
+            GoTo(a, b, 34, 34, l => l.StartsWith("cty"), l => l.StartsWith("cty"), "les deux au port");
+            Thread.Sleep(4000);
+            // J1 dans le Sand Shark (vrai maillage de collision)
+            a.TestCommand(145); b.TestCommand(145); Thread.Sleep(1200);
+            a.TestCommand(245); Thread.Sleep(8000);
+            Check("J1 conduit", (Gflags(a) & 0x80) != 0);
+            float[] pa0 = PosOf(a);
+            // J2 saute sur le toit
+            b.TestCommand(571); Thread.Sleep(3500);
+            float[] pb0 = PosOf(b);
+            b.TestCommand(577); Thread.Sleep(600);
+            Console.WriteLine("   toit : J2 a " + ((pb0[1] - pa0[1]) / 4096f).ToString("0.00") + " m au-dessus de J1, a " + (Dist(PosOf(a), pb0)).ToString("0.00") + " m ; porte " + ((Gb(b, 88 + 34) & 2) != 0));
+            Check("J2 tient debout SUR le vehicule (pas a travers)", (pb0[1] - pa0[1]) / 4096f > 0.6 && (Gb(b, 88 + 34) & 2) != 0);
+            ShotOf(g2.Id, "e1-sur-le-toit-j2");
+            ShotOf(g1.Id, "e1-sur-le-toit-j1");
+            // J1 avance (environ 20 km/h) : J2 est emporte
+            pa0 = PosOf(a);
+            a.TestCommand(572);
+            double maxRel = 0;
+            for (int k = 0; k < 25; k++) { Thread.Sleep(100); maxRel = Math.Max(maxRel, Dist(PosOf(a), PosOf(b))); }
+            float[] pa1 = PosOf(a), pb1 = PosOf(b);
+            double moved = Dist(pa0, pa1), rel = Dist(pa1, pb1);
+            Console.WriteLine("   J1 a roule " + moved.ToString("0.0") + " m ; J2 est a " + rel.ToString("0.00") + " m de lui (au plus loin " + maxRel.ToString("0.00") + "), " + ((pb1[1] - pa1[1]) / 4096f).ToString("0.00") + " m au-dessus");
+            Check("le vehicule roule et emporte J2 (reste dessus)", moved > 2 && rel < 3.0 && (pb1[1] - pa1[1]) / 4096f > 0.3);
+            ShotOf(g2.Id, "e2-emporte-j2");
+            ShotOf(g1.Id, "e2-emporte-j1");
+            // HELLCAT a Haven : J2 monte dessus et J1 l'emmene
+            a.TestCommand(70); b.TestCommand(70); Thread.Sleep(2500);
+            a.TestCommand(508); Thread.Sleep(1500);
+            a.TestCommand(568); Thread.Sleep(9000);
+            a.TestCommand(577); Thread.Sleep(600);
+            Check("Hellcat pilote a Haven", (Gflags(a) & 0x80) != 0 && (Gb(a, 88 + 34) & 1) != 0);
+            ShotOf(g1.Id, "e4-hellcat-haven-j1");
+            b.TestCommand(571); Thread.Sleep(3500);
+            b.TestCommand(577); Thread.Sleep(600);
+            Check("J2 debout sur le Hellcat de J1", (Gb(b, 88 + 34) & 2) != 0);
+            ShotOf(g2.Id, "e4-sur-le-hellcat-j2");
+            float[] ha0 = PosOf(a);
+            a.TestCommand(572);
+            for (int k = 0; k < 25; k++) Thread.Sleep(100);
+            float[] ha1 = PosOf(a), hb1 = PosOf(b);
+            Console.WriteLine("   Hellcat : J1 a vole " + Dist(ha0, ha1).ToString("0.0") + " m ; J2 est a " + Dist(ha1, hb1).ToString("0.00") + " m de lui");
+            Check("le Hellcat emporte J2", Dist(ha0, ha1) > 2 && Dist(ha1, hb1) < 4.0);
+            ShotOf(g2.Id, "e4-emporte-par-le-hellcat-j2");
+            a.TestCommand(70); Thread.Sleep(2500);
+            // au desert
+            GoTo(a, b, 31, 31, l => l.StartsWith("des") || l.StartsWith("was"), l => l.StartsWith("des") || l.StartsWith("was"), "les deux au desert");
+            Thread.Sleep(4000);
+            // choc (terrain degage) : J1 dans sa voiture, J2 prend la sienne derriere lui et lui fonce dedans
+            a.TestCommand(70); b.TestCommand(70); Thread.Sleep(2500);
+            a.TestCommand(245); Thread.Sleep(8000);
+            b.TestCommand(575); Thread.Sleep(2500);
+            b.TestCommand(245); Thread.Sleep(900);
+            ShotOf(g2.Id, "e3-appel-j2");
+            Thread.Sleep(7000);
+            if ((Gflags(b) & 0x80) == 0) { Console.WriteLine("   J2 : 2e appel (drapeaux " + Gflags(b).ToString("x") + ")"); b.TestCommand(245); Thread.Sleep(8000); }
+            Check("J2 conduit", (Gflags(b) & 0x80) != 0);
+            float[] qa0 = PosOf(a), qb0 = PosOf(b);
+            Console.WriteLine("   avant le choc : J1 " + qa0[0] + " " + qa0[1] + " " + qa0[2] + "  J2 " + qb0[0] + " " + qb0[1] + " " + qb0[2]);
+            double closest = 999;
+            // J2 accelere vers J1 (sans pilote, le vehicule freine tout seul : on le relance)
+            for (int k = 0; k < 30; k++) { if (k < 12 && k % 3 == 0) b.TestCommand(576); Thread.Sleep(100); closest = Math.Min(closest, Dist(PosOf(a), PosOf(b))); }
+            Thread.Sleep(2000);
+            float[] qa1 = PosOf(a), qb1 = PosOf(b);
+            double push = Dist(qa0, qa1);
+            bool through = Dist(qb1, qb0) > Dist(qa0, qb0) + 3.0;
+            Console.WriteLine("   choc : J2 a roule " + Dist(qb0, qb1).ToString("0.0") + " m ; au plus pres " + closest.ToString("0.00") + " m ; J1 pousse de " + push.ToString("0.00") + " m ; J2 passe a travers " + through);
+            Check("les vehicules se rentrent dedans (pas a travers)", !through && closest > 1.0 && closest < 6.0);
+            Check("le vehicule percute est pousse", push > 0.5);
+            ShotOf(g1.Id, "e3-choc-j1");
+            ShotOf(g2.Id, "e3-choc-j2");
+            // HELLCAT au desert (on descend d'abord du buggy de l'arrivee)
+            a.TestCommand(70); Thread.Sleep(3000);
+            a.TestCommand(568); Thread.Sleep(900);
+            ShotOf(g1.Id, "e4-appel-hellcat-desert-j1");
+            Thread.Sleep(8000);
+            a.TestCommand(577); Thread.Sleep(600);
+            Console.WriteLine("   Hellcat : pilote " + ((Gflags(a) & 0x80) != 0) + "  h-warf " + ((Gb(a, 88 + 34) & 1) != 0));
+            Check("Hellcat pilote au desert", (Gflags(a) & 0x80) != 0 && (Gb(a, 88 + 34) & 1) != 0);
+            ShotOf(g1.Id, "e4-hellcat-desert-j1");
+            b.TestCommand(84); Thread.Sleep(3000);
+            ShotOf(g2.Id, "e4-hellcat-desert-vu-par-j2");
+            for (int k = 0; k < 2; k++) { a.TestCommand(572); Thread.Sleep(800); }
+            Thread.Sleep(3000);
+            ShotOf(g1.Id, "e4-hellcat-vol-j1");
+            Check("le jeu tourne avec le Hellcat", a.GameAttached && !g1.HasExited);
+            a.TestCommand(70); Thread.Sleep(2500);
+            Check("les jeux tournent", a.GameAttached && b.GameAttached && !g1.HasExited && !g2.HasExited);
+            a.Stop(); b.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            try { g2.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST MAJ12E OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --jak2swap : Jak 3 -> vrai Jak 2 -> Jak 3 -> Jak 2 -> Keira... (changement de corps en direct)
+        public static int Jak2Swap()
+        {
+            const int port = 27983;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilS");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Start(); a.Connect();
+            Check("jeu detecte", Wait(() => a.GameAttached && a.NetState == Shm.NET_LOBBY, 180000));
+            Thread.Sleep(12000);
+            a.TestSetXp(200000); a.TestSetMoney(60000);
+            a.UiJoinWorld();
+            Check("monde en ligne", Wait(() => (UiF(a) & 2) != 0 && Loaded(a) && Lvl(a).StartsWith("cty"), 240000));
+            Thread.Sleep(5000);
+            a.TestCommand(154); Thread.Sleep(1500); a.TestCommand(175); Thread.Sleep(1500); a.TestCommand(155); Thread.Sleep(1500);
+            int[] seq = { 2, 0, 2, 1, 2, 3, 0 };
+            foreach (int k in seq)
+            {
+                Console.WriteLine("   -> personnage " + k);
+                a.TestCommand(590 + k);
+                bool ok = Wait(() => Gb(a, 107) == k && (k != 2 || Gb(a, 88 + 35) == 4) && (k == 2 || k > 0 || Gb(a, 88 + 35) == 6), 25000);
+                Thread.Sleep(3000);
+                Console.WriteLine("      corps " + Gb(a, 88 + 35) + "  perso " + Gb(a, 107) + "  jeu vivant " + (a.GameAttached && !g1.HasExited));
+                Check("personnage " + k + " pose, jeu vivant", ok && a.GameAttached && !g1.HasExited);
+                ShotOf(g1.Id, "s-perso-" + k);
+                if (g1.HasExited) break;
+            }
+            a.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST JAK2SWAP OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --village : le village de Jak 1 : la mer (on y nage) et le requin lurker
+        // --maj13b : collisions entre joueurs, les 8 maisons, boites aux lettres, bateau, nage
+        // --events13 : COURSE AUTO (circuit) et CACHE-CACHE (manoir)
+        public static int Events13()
+        {
+            const int port = 27987;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilEv13");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Log = m => { if (m.Contains("course") || m.Contains("cache")) Console.WriteLine("   [log] " + m); }; a.Start(); a.Connect();
+            Check("jeu detecte", Wait(() => a.GameAttached && a.NetState == Shm.NET_LOBBY, 180000));
+            Thread.Sleep(12000);
+            a.TestSetXp(100000); a.TestSetMoney(1000);
+            a.UiJoinWorld();
+            Check("monde en ligne", Wait(() => (UiF(a) & 2) != 0 && Loaded(a) && Lvl(a).StartsWith("cty"), 240000));
+            Thread.Sleep(6000);
+            // ---- COURSE AUTO
+            a.TestStartEvent(Client.EVK_KART);
+            Check("course auto lancee", Wait(() => a.TestEventKind == Client.EVK_KART && a.TestEventState == 1, 8000));
+            Check("depart pour le circuit (compte a rebours)", Wait(() => MapOf(a) == 16 && Loaded(a), 120000));
+            Thread.Sleep(9000);
+            a.TestCommand(697); Thread.Sleep(400);
+            Console.WriteLine("   circuit : pad41 " + Gb(a, 88 + 37) + "  flags 0x" + Gflags(a).ToString("x"));
+            ShotOf(g1.Id, "k1-circuit-depart");
+            Check("un vehicule pour la course", (Gb(a, 88 + 37) & 1) != 0 || (Gflags(a) & 0x80) != 0);
+            a.TestCommand(572); Thread.Sleep(3000);
+            ShotOf(g1.Id, "k2-circuit-roule");
+            long m0 = a.TestMoney;
+            a.TestCommand(695); Thread.Sleep(2500);
+            Check("l'arrivee ne compte pas sans faire le tour", a.TestEventState == 1);
+            for (int n = 0; n < 3; n++) { a.TestCommand(690 + n); Thread.Sleep(5500); }
+            a.TestCommand(697); Thread.Sleep(400);
+            Console.WriteLine("   points de passage franchis : " + Gb(a, 88 + 38));
+            Check("3 points de passage dans l'ordre", Gb(a, 88 + 38) == 3);
+            Thread.Sleep(2000);
+            a.TestCommand(695);
+            Check("course gagnee", Wait(() => a.TestEventState == 2 && a.TestEventWinner != 0, 15000));
+            Thread.Sleep(3000);
+            ShotOf(g1.Id, "k3-circuit-gagne");
+            Console.WriteLine("   orbes : " + m0 + " -> " + a.TestMoney);
+            Check("3000 orbes pour le gagnant", a.TestMoney - m0 >= 3000);
+            Check("retour au port apres la course", Wait(() => MapOf(a) < 0 && Loaded(a), 90000));
+            Thread.Sleep(8000);
+            // ---- CACHE-CACHE
+            a.TestStartEvent(Client.EVK_HIDE);
+            Check("cache-cache lance", Wait(() => a.TestEventKind == Client.EVK_HIDE && a.TestEventState == 1, 8000));
+            Check("depart pour le manoir", Wait(() => MapOf(a) == 12 && Loaded(a), 120000));
+            Thread.Sleep(8000);
+            a.TestCommand(697); Thread.Sleep(400);
+            Console.WriteLine("   cache-cache : pad41 " + Gb(a, 88 + 37));
+            ShotOf(g1.Id, "h1-manoir-bleu");
+            Check("personnage rouge cache, joueurs en bleu", (Gb(a, 88 + 37) & 6) == 6);
+            long m1 = a.TestMoney;
+            a.TestCommand(696); Thread.Sleep(600);
+            ShotOf(g1.Id, "h2-trouve");
+            Check("personnage rouge trouve", Wait(() => a.TestEventState == 2 && a.TestEventWinner != 0, 15000));
+            Thread.Sleep(3000);
+            Console.WriteLine("   orbes : " + m1 + " -> " + a.TestMoney);
+            Check("orbes pour le gagnant (plafond anti-triche : 5000 par 30 min)", a.TestMoney - m1 >= 2000);
+            Check("le jeu tourne", a.GameAttached && !g1.HasExited);
+            a.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST EVENTS13 OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --vehmap : appeler un vehicule sur une carte du mod (maison)
+        public static int VehMap()
+        {
+            const int port = 27988;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilVM");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Start(); a.Connect();
+            Check("jeu detecte", Wait(() => a.GameAttached && a.NetState == Shm.NET_LOBBY, 180000));
+            Thread.Sleep(12000);
+            a.TestSetXp(100000); a.TestSetMoney(900000);
+            a.UiJoinWorld();
+            Check("monde en ligne", Wait(() => (UiF(a) & 2) != 0 && Loaded(a) && Lvl(a).StartsWith("cty"), 240000));
+            Thread.Sleep(5000);
+            int item = int.Parse(Environment.GetEnvironmentVariable("VEHITEM") ?? "45");
+            a.TestCommand(500); Thread.Sleep(1500);
+            a.TestCommand(item < 96 ? 100 + item : 500 + item - 96); Thread.Sleep(1500);
+            a.TestCommand(610);
+            Check("cabane chargee", Wait(() => MapOf(a) == 8 && Loaded(a), 150000));
+            Thread.Sleep(6000);
+            a.TestCommand(int.Parse(Environment.GetEnvironmentVariable("VEHCMD") ?? "245"));
+            Thread.Sleep(8000);
+            ShotOf(g1.Id, "vm-vehicule");
+            Check("le jeu tourne avec un vehicule", a.GameAttached && !g1.HasExited);
+            a.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            return fails;
+        }
+
+        public static bool CollOnly;
+        // --acc13 : ACCESSOIRES (achat, port, vus par l'autre joueur), couleurs des personnages, dialogues
+        public static int Acc13()
+        {
+            const int port = 27988;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilAcc");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Thread.Sleep(8000);
+            Process g2 = StartGame(mod, sp, Path.Combine(sp, "data2"), "cfg2");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Log = m => Console.WriteLine("   [J1] " + m); a.Start(); a.Connect();
+            Client b = new Client(); b.BridgeDir = Path.Combine(sp, "data2", "online", "bridge"); b.WantedName = "Joueur2"; b.Ephemeral = true; b.ServerAddress = "127.0.0.1:" + port;
+            b.Log = m => Console.WriteLine("   [J2] " + m); b.Start(); b.Connect();
+            Check("les deux jeux sont detectes", Wait(() => a.GameAttached && b.GameAttached && a.NetState == Shm.NET_LOBBY && b.NetState == Shm.NET_LOBBY, 180000));
+            foreach (Process gp in new Process[] { g1, g2 }) { IntPtr w = WindowOf(gp.Id); if (w != IntPtr.Zero) ShowWindow(w, 7); }
+            Thread.Sleep(15000);
+            a.TestSetXp(400000); a.TestSetMoney(2500000);
+            b.TestSetXp(100); b.TestSetMoney(80000);
+            a.UiJoinWorld(); Thread.Sleep(1500); b.UiJoinWorld();
+            Check("monde en ligne dans les deux jeux", Wait(() => (UiF(a) & 2) != 0 && (UiF(b) & 2) != 0 && Loaded(a) && Loaded(b) && Lvl(a).StartsWith("cty") && Lvl(b).StartsWith("cty"), 240000));
+            Thread.Sleep(5000);
+            GoTo(a, b, 34, 34, l => l.StartsWith("cty"), l => l.StartsWith("cty"), "les deux au port");
+            Thread.Sleep(3000);
+            // ---- niveau requis : J2 (niveau 1) ne peut pas acheter la couronne (niveau 30)
+            long mb0 = b.TestMoney;
+            b.TestCommand(500 + 119 - 96); Thread.Sleep(2000);
+            Check("couronne refusee au niveau 1 (reservee au niveau 30)", b.TestMoney == mb0 && b.TestWear == 0);
+            // ---- J1 achete (par le menu du jeu) une couronne, des lunettes, des ailes d'ange
+            long m0 = a.TestMoney;
+            foreach (int id in new int[] { 119, 121, 126 }) { a.TestCommand(500 + id - 96); Thread.Sleep(1800); }
+            Console.WriteLine("   achats : " + m0 + " -> " + a.TestMoney + " ; porte 0x" + a.TestWear.ToString("x"));
+            Check("3 accessoires achetes (100000 + 2000 + 150000)", m0 - a.TestMoney == 252000);
+            Check("portes tout de suite (tete, visage, dos)", a.TestWear == (6 | (1 << 8) | (3 << 16)));
+            Thread.Sleep(3000);
+            a.TestCommand(740); Thread.Sleep(400);
+            Console.WriteLine("   J1 : accessoires affiches " + Gb(a, 88 + 36) + " ; octet 0x" + Gb(a, 88 + 37).ToString("x"));
+            Check("J1 voit ses 3 accessoires", Gb(a, 88 + 36) == 3);
+            // J2 se place devant J1 (face a face) : J2 voit le visage de J1
+            Console.WriteLine("   avant : J1-J2 " + Dist(PosOf(a), PosOf(b)).ToString("0.00") + " m");
+            b.TestCommand(743); Thread.Sleep(300);
+            Console.WriteLine("   apres 743 (0,3 s) : J1-J2 " + Dist(PosOf(a), PosOf(b)).ToString("0.00") + " m");
+            Thread.Sleep(1200);
+            Console.WriteLine("   apres 743 (1,5 s) : J1-J2 " + Dist(PosOf(a), PosOf(b)).ToString("0.00") + " m");
+            b.TestCommand(745); Thread.Sleep(200);
+            b.TestCommand(744); a.TestCommand(741); Thread.Sleep(2500);   // J2 invisible chez lui : sa camera voit J1 de face
+            Console.WriteLine("   J1-J2 " + Dist(PosOf(a), PosOf(b)).ToString("0.00") + " m");
+            ShotOf(g2.Id, "a1-face-vu-par-j2");
+            ShotOf(g1.Id, "a1b-j1");
+            if (Environment.GetEnvironmentVariable("ACC_QUICK") == "1") { a.Stop(); b.Stop(); s.Stop(); try { g1.Kill(); g2.Kill(); } catch (Exception) { } return fails; }
+            ShotOf(g1.Id, "a2-dos-vu-par-j1");
+            b.TestCommand(740); Thread.Sleep(400);
+            Console.WriteLine("   J2 voit sur J1 : " + Gb(b, 88 + 38) + " accessoire(s)");
+            ShotOf(g2.Id, "a3-vu-par-j2");
+            Check("J2 voit les 3 accessoires de J1", Gb(b, 88 + 38) == 3);
+            // ---- personnages (couleurs corrigees) avec accessoires
+            foreach (int k in new int[] { 1, 5, 7, 4, 3 })
+            {
+                a.TestBuy(Profil.PersoItem[k]); a.TestPerso(k); Thread.Sleep(5000);
+                b.TestCommand(743); Thread.Sleep(300); b.TestCommand(744); a.TestCommand(741); Thread.Sleep(2200);
+                ShotOf(g2.Id, "a4-perso" + k);
+            }
+            // retour a Jak : l'avatar chez J2 doit retrouver le corps de Jak (avec puis sans J2 cache)
+            a.TestPerso(0); Thread.Sleep(5000);
+            b.TestCommand(740); Thread.Sleep(400);
+            Console.WriteLine("   retour a Jak : corps de l'avatar chez J2 = " + Gb(b, 88 + 39));
+            ShotOf(g2.Id, "a4-retour-jak");
+            // un autre chapeau, un masque, une cape
+            foreach (int id in new int[] { 115, 122, 125 }) { a.TestCommand(500 + id - 96); Thread.Sleep(1800); }
+            a.TestPerso(0); Thread.Sleep(4000);
+            b.TestCommand(743); Thread.Sleep(300); b.TestCommand(744); a.TestCommand(741); Thread.Sleep(2200);
+            ShotOf(g2.Id, "a5-cowboy-ninja");
+            ShotOf(g1.Id, "a6-cape");
+            foreach (int id in new int[] { 114, 116, 117, 118, 120, 123, 124, 127 })
+            {
+                a.TestCommand(500 + id - 96); Thread.Sleep(2200);
+                b.TestCommand(743); Thread.Sleep(300); b.TestCommand(744); a.TestCommand(741); Thread.Sleep(1700);
+                ShotOf(g2.Id, "a8-acc" + id);
+            }
+            ShotOf(g2.Id, "a7-cape-vu-par-j2");
+            b.TestCommand(740); Thread.Sleep(400);
+            Check("J2 voit le changement (3 accessoires)", Gb(b, 88 + 38) == 3);
+            // le menu STYLE (ce que voit le joueur)
+            a.TestCommand(746); Thread.Sleep(1500);
+            ShotOf(g1.Id, "a9-menu-style");
+            a.TestCommand(746); Thread.Sleep(300);
+            for (int k = 0; k < 12; k++) { a.TestCommand(747); Thread.Sleep(120); }
+            Thread.Sleep(800);
+            ShotOf(g1.Id, "a9-menu-style-bas");
+            if (Environment.GetEnvironmentVariable("ACC_NODIAL") == "1") { a.Stop(); b.Stop(); s.Stop(); try { g1.Kill(); g2.Kill(); } catch (Exception) { } return fails; }
+            // ---- DIALOGUES : chaque replique doit exister dans les voix du jeu
+            string bad = "";
+            for (int k = 0; k < 35; k++)
+            {
+                a.TestCommand(750 + k);
+                int st = 0;
+                for (int n = 0; n < 12 && st < 3; n++) { Thread.Sleep(250); a.TestCommand(709); Thread.Sleep(150); st = Gb(a, 88 + 36); }
+                Console.WriteLine("   dialogue " + k + " : etat " + st);
+                if (st != 3) bad += k + " ";
+                Thread.Sleep(2500);
+            }
+            Console.WriteLine("   repliques qui ne jouent pas : " + (bad == "" ? "aucune" : bad));
+            Check("toutes les repliques jouent", bad == "");
+            Check("les jeux tournent", a.GameAttached && !g1.HasExited && !g2.HasExited);
+            a.Stop(); b.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            try { g2.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST ACC13 OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        public static int Maj13b()
+        {
+            const int port = 27985;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profil13b");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Thread.Sleep(8000);
+            Process g2 = StartGame(mod, sp, Path.Combine(sp, "data2"), "cfg2");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Log = m => Console.WriteLine("   [J1] " + m); a.Start(); a.Connect();
+            Client b = new Client(); b.BridgeDir = Path.Combine(sp, "data2", "online", "bridge"); b.WantedName = "Joueur2"; b.Ephemeral = true; b.ServerAddress = "127.0.0.1:" + port;
+            b.Log = m => Console.WriteLine("   [J2] " + m); b.Start(); b.Connect();
+            Check("les deux jeux sont detectes", Wait(() => a.GameAttached && b.GameAttached && a.NetState == Shm.NET_LOBBY && b.NetState == Shm.NET_LOBBY, 180000));
+            foreach (Process gp in new Process[] { g1, g2 }) { IntPtr w = WindowOf(gp.Id); if (w != IntPtr.Zero) ShowWindow(w, 7); }
+            Thread.Sleep(15000);
+            a.TestSetXp(400000); a.TestSetMoney(2500000);
+            b.TestSetXp(400000); b.TestSetMoney(80000);
+            a.UiJoinWorld(); Thread.Sleep(1500); b.UiJoinWorld();
+            Check("monde en ligne dans les deux jeux", Wait(() => (UiF(a) & 2) != 0 && (UiF(b) & 2) != 0 && Loaded(a) && Loaded(b) && Lvl(a).StartsWith("cty") && Lvl(b).StartsWith("cty"), 240000));
+            Thread.Sleep(5000);
+            GoTo(a, b, 34, 34, l => l.StartsWith("cty"), l => l.StartsWith("cty"), "les deux au port");
+            Thread.Sleep(5000);
+            // ---- COLLISIONS ENTRE JOUEURS
+            b.TestCommand(651); Thread.Sleep(1800);
+            float[] pa = PosOf(a), pb = PosOf(b);
+            double hd = Math.Sqrt(Math.Pow((pa[0] - pb[0]) / 4096.0, 2) + Math.Pow((pa[2] - pb[2]) / 4096.0, 2));
+            b.TestCommand(652); Thread.Sleep(400);
+            Console.WriteLine("   J2 fonce sur J1 : ecart " + hd.ToString("0.00") + " m ; corps solide " + ((Gb(b, 88 + 39) & 1) != 0));
+            ShotOf(g2.Id, "c1-bouscule-j2");
+            Check("J2 bute contre J1 (on ne se traverse plus)", hd > 0.7 && (Gb(b, 88 + 39) & 1) != 0);
+            b.TestCommand(650); Thread.Sleep(2500);
+            b.TestCommand(652); Thread.Sleep(400);
+            pa = PosOf(a); pb = PosOf(b);
+            Console.WriteLine("   J2 sur la tete : " + ((pb[1] - pa[1]) / 4096f).ToString("0.00") + " m au-dessus ; debout " + ((Gb(b, 88 + 39) & 2) != 0));
+            ShotOf(g2.Id, "c2-sur-la-tete-j2");
+            ShotOf(g1.Id, "c2-sur-la-tete-j1");
+            Check("J2 debout sur la tete de J1", (Gb(b, 88 + 39) & 2) != 0);
+            a.TestCommand(653);
+            float[] pa0 = PosOf(a);
+            Thread.Sleep(2200);
+            pa = PosOf(a); pb = PosOf(b);
+            double walked = Dist(pa0, pa);
+            hd = Math.Sqrt(Math.Pow((pa[0] - pb[0]) / 4096.0, 2) + Math.Pow((pa[2] - pb[2]) / 4096.0, 2));
+            Console.WriteLine("   J1 marche " + walked.ToString("0.0") + " m ; J2 a " + hd.ToString("0.00") + " m de lui, " + ((pb[1] - pa[1]) / 4096f).ToString("0.00") + " m au-dessus");
+            ShotOf(g1.Id, "c3-porte-j1");
+            Check("J1 marche et emporte J2 sur sa tete", walked > 2 && hd < 1.2 && (pb[1] - pa[1]) / 4096f > 1.2);
+            if (CollOnly)
+            {
+                a.Stop(); b.Stop(); s.Stop();
+                try { g1.Kill(); } catch (Exception) { }
+                try { g2.Kill(); } catch (Exception) { }
+                Console.WriteLine(fails == 0 ? "TEST COLL OK" : (fails + " TEST(S) EN ECHEC"));
+                return fails;
+            }
+            // ---- LES MAISONS
+            long m0 = a.TestMoney;
+            a.TestCommand(500 + 113 - 96); Thread.Sleep(2500);
+            Console.WriteLine("   achat du palais : " + m0 + " -> " + a.TestMoney);
+            Check("palais de l'ile achete 1 000 000", m0 - a.TestMoney == 1000000);
+            a.TestCommand(617);
+            Check("palais de l'ile charge", Wait(() => Lvl(a) == "ow-palais" && Loaded(a) && MapOf(a) == 15, 150000));
+            Thread.Sleep(8000);
+            ShotOf(g1.Id, "m1-palais-entree");
+            a.TestCommand(645); Thread.Sleep(400);
+            Check("bateau(x) sur l'eau", (Gb(a, 88 + 38) & 2) != 0);
+            long m1 = a.TestMoney;
+            a.TestCommand(630); Thread.Sleep(3000);
+            Console.WriteLine("   boite aux lettres : " + m1 + " -> " + a.TestMoney);
+            ShotOf(g1.Id, "m2-boite-aux-lettres");
+            Check("boite aux lettres : +1000 orbes (1 jour)", a.TestMoney - m1 == 1000);
+            long m2 = a.TestMoney;
+            a.TestCommand(631); Thread.Sleep(3000);
+            a.TestCommand(630); Thread.Sleep(3000);
+            Check("2e boite : +1000, 1re deja relevee : rien", a.TestMoney - m2 == 1000);
+            a.TestCommand(640); Thread.Sleep(3000);
+            a.TestCommand(645); Thread.Sleep(400);
+            ShotOf(g1.Id, "m3-nage-mer");
+            Check("Jak nage dans la mer de l'ile", (Gb(a, 88 + 38) & 1) != 0);
+            a.TestCommand(641); Thread.Sleep(3000);
+            a.TestCommand(645); Thread.Sleep(400);
+            ShotOf(g1.Id, "m4-nage-2");
+            Console.WriteLine("   2e eau : nage " + ((Gb(a, 88 + 38) & 1) != 0));
+            foreach (int hk in new int[] { 3, 4, 5, 6 })
+            {
+                a.TestCommand(500 + 109 + hk - 3 - 96); Thread.Sleep(2000);
+                a.TestCommand(610 + hk);
+                bool ok = Wait(() => MapOf(a) == 8 + hk && Loaded(a), 150000);
+                Thread.Sleep(7000);
+                ShotOf(g1.Id, "m5-maison-" + hk);
+                Check("maison " + hk + " chargee (" + Lvl(a) + ")", ok);
+            }
+            a.TestCommand(630); Thread.Sleep(2500);
+            ShotOf(g1.Id, "m6-temple-boite");
+            Check("les deux jeux tournent", a.GameAttached && b.GameAttached && !g1.HasExited && !g2.HasExited);
+            a.Stop(); b.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            try { g2.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST MAJ13B OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --maj13 : premiere personne (R3), la mer du village
+        public static int Maj13()
+        {
+            const int port = 27983;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profil13");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Start(); a.Connect();
+            Check("jeu detecte", Wait(() => a.GameAttached && a.NetState == Shm.NET_LOBBY, 180000));
+            Thread.Sleep(12000);
+            a.UiJoinWorld();
+            Check("monde en ligne", Wait(() => (UiF(a) & 2) != 0 && Loaded(a) && Lvl(a).StartsWith("cty"), 240000));
+            Thread.Sleep(5000);
+            // ---- premiere personne
+            ShotOf(g1.Id, "m13-vue-normale");
+            a.TestCommand(581); Thread.Sleep(2500);
+            a.TestCommand(582); Thread.Sleep(400);
+            Console.WriteLine("   1re personne : pad37 " + Gb(a, 88 + 37));
+            ShotOf(g1.Id, "m13-premiere-personne");
+            Check("vue a la premiere personne active", Gb(a, 88 + 37) == 3);
+            a.TestCommand(581); Thread.Sleep(2000);
+            a.TestCommand(582); Thread.Sleep(400);
+            ShotOf(g1.Id, "m13-retour-normal");
+            Check("retour a la vue normale", Gb(a, 88 + 37) == 0);
+            // ---- meteo (admin) et dialogue
+            a.TestCommand(662); Thread.Sleep(11000);
+            a.TestCommand(669); Thread.Sleep(400);
+            Console.WriteLine("   meteo : pad40 " + Gb(a, 88 + 36));
+            ShotOf(g1.Id, "m13-orage");
+            Check("orage (eclairs, pluie forte)", (Gb(a, 88 + 36) & 15) == 2 && (Gb(a, 88 + 36) & 16) != 0);
+            a.TestCommand(663); Thread.Sleep(16000);
+            a.TestCommand(669); Thread.Sleep(400);
+            ShotOf(g1.Id, "m13-neige");
+            Check("neige", (Gb(a, 88 + 36) & 15) == 3 && (Gb(a, 88 + 36) & 16) != 0);
+            a.TestCommand(660); Thread.Sleep(9000);
+            a.TestCommand(669); Thread.Sleep(400);
+            Check("retour du beau temps", (Gb(a, 88 + 36) & 15) == 0);
+            a.TestCommand(722); Thread.Sleep(1500);
+            ShotOf(g1.Id, "m13-dialogue-sig");
+            Check("le jeu tourne apres un dialogue", a.GameAttached && !g1.HasExited);
+            // ---- la mer du village
+            a.TestCommand(400);
+            Check("village charge", Wait(() => Lvl(a) == "ow-jak1" && Loaded(a) && MapOf(a) == 0, 150000));
+            Thread.Sleep(6000);
+            a.TestCommand(579); Thread.Sleep(4000);
+            a.TestCommand(580); Thread.Sleep(500);
+            Console.WriteLine("   au large : nage " + ((Gb(a, 88 + 36) & 1) != 0) + "  y " + (PosOf(a)[1] / 4096f).ToString("0.0"));
+            ShotOf(g1.Id, "m13-en-mer");
+            Check("Jak nage dans la mer du village", (Gb(a, 88 + 36) & 1) != 0);
+            bool shark = Wait(() => { a.TestCommand(580); Thread.Sleep(300); return (Gb(a, 88 + 36) & 2) != 0; }, 20000);
+            ShotOf(g1.Id, "m13-requin");
+            Check("le requin lurker arrive", shark);
+            Thread.Sleep(4000);
+            ShotOf(g1.Id, "m13-requin-mange");
+            Check("le jeu tourne", a.GameAttached && !g1.HasExited);
+            a.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST MAJ13 OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        public static int Village()
+        {
+            const int port = 27982;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilV");
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Start(); a.Connect();
+            Check("jeu detecte", Wait(() => a.GameAttached && a.NetState == Shm.NET_LOBBY, 180000));
+            Thread.Sleep(12000);
+            a.UiJoinWorld();
+            Check("monde en ligne", Wait(() => (UiF(a) & 2) != 0 && Loaded(a) && Lvl(a).StartsWith("cty"), 240000));
+            Thread.Sleep(4000);
+            a.TestCommand(400);
+            Check("village charge", Wait(() => Lvl(a) == "ow-jak1" && Loaded(a) && MapOf(a) == 0, 150000));
+            Thread.Sleep(6000);
+            ShotOf(g1.Id, "v1-village-depart");
+            for (int k = 0; k < 4; k++) { a.TestCommand(420 + 4 + k * 4); Thread.Sleep(1800); ShotOf(g1.Id, "v2-vue" + k); }
+            a.TestCommand(579); Thread.Sleep(4000);
+            a.TestCommand(580); Thread.Sleep(500);
+            Console.WriteLine("   au large : nage " + ((Gb(a, 88 + 36) & 1) != 0) + "  y " + (PosOf(a)[1] / 4096f).ToString("0.0"));
+            ShotOf(g1.Id, "v3-en-mer");
+            Check("Jak nage dans la mer du village", (Gb(a, 88 + 36) & 1) != 0);
+            bool shark = Wait(() => { a.TestCommand(580); Thread.Sleep(300); return (Gb(a, 88 + 36) & 2) != 0; }, 20000);
+            ShotOf(g1.Id, "v4-requin");
+            Check("le requin lurker arrive", shark);
+            Thread.Sleep(5000);
+            ShotOf(g1.Id, "v5-requin-mange");
+            Check("le jeu tourne", a.GameAttached && !g1.HasExited);
+            a.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST VILLAGE OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --j2local : le joueur 2 local (2e jeu dans une 2e fenetre, 2e manette, meme session)
+        public static int J2Local()
+        {
+            const int port = 27986;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            string dirA = Path.Combine(sp, "profilJ");
+            Environment.SetEnvironmentVariable("JAK3ONLINE_J2DIR", Path.Combine(sp, "j2"));
+            Environment.SetEnvironmentVariable("JAK3ONLINE_PROFILE", Path.Combine(sp, "profilJ2base"));
+            try { if (Directory.Exists(dirA)) Directory.Delete(dirA, true); } catch (Exception) { }
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.ServerAddress = "127.0.0.1:" + port; a.ProfileDir = dirA;
+            a.Log = m => Console.WriteLine("   [J1] " + m); a.Start(); a.Connect();
+            Check("le jeu du joueur 1 est detecte", Wait(() => a.GameAttached && a.NetState == Shm.NET_LOBBY, 180000));
+            Thread.Sleep(12000);
+            a.UiJoinWorld();
+            Check("J1 dans le monde en ligne", Wait(() => (UiF(a) & 2) != 0 && Loaded(a) && Lvl(a).StartsWith("cty"), 240000));
+            Console.WriteLine("   manettes vues par J1 : " + Gb(a, 88 + 33) + "  (la sienne : " + (Gb(a, 88 + 32) - 1) + ")");
+            // le bouton "joueur 2 local"
+            a.LocalJ2Request(1);
+            Check("le 2e jeu demarre", Wait(() => a.LocalJ2Game != null && a.LocalJ2Client != null, 60000));
+            Process g2 = a.LocalJ2Game;
+            Client c = a.LocalJ2Client;
+            Check("le 2e jeu est detecte (son propre dossier)", Wait(() => c.GameAttached, 180000));
+            Check("J2 n'est jamais createur", !c.IsCreateur);
+            Check("J2 rejoint la meme session tout seul", Wait(() => c.SessionId != 0 && c.SessionId == a.SessionId && (UiF(c) & 2) != 0 && Loaded(c), 300000));
+            Check("J1 voit J2 (2 joueurs)", Wait(() => a.SessionCount == 2, 20000));
+            Thread.Sleep(8000);
+            Console.WriteLine("   J2 : manette " + (Gb(c, 88 + 32) - 1) + " sur " + Gb(c, 88 + 33) + "  niveau " + Lvl(c) + "  drapeaux EXT J1 " + a.LocalJ2Flags + "  J2 " + c.LocalJ2Flags);
+            Check("drapeaux : J1 sait qu'un J2 tourne, J2 sait qu'il est J2", (a.LocalJ2Flags & 2) != 0 && (c.LocalJ2Flags & 1) != 0);
+            ShotOf(g1.Id, "j2-fenetre-joueur1");
+            ShotOf(g2.Id, "j2-fenetre-joueur2");
+            // arret
+            a.LocalJ2Request(0);
+            Check("J2 s'arrete (jeu ferme, J1 seul)", Wait(() => g2.HasExited && a.SessionCount == 1 && a.LocalJ2Flags == 0, 30000));
+            Check("le jeu du joueur 1 tourne", a.GameAttached && !g1.HasExited);
+            a.Stop(); s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST J2 LOCAL OK" : (fails + " TEST(S) EN ECHEC"));
+            return fails;
+        }
+
+        // --aide : page EN LIGNE avec le programme, puis sans (aide pour le lancer)
+        public static int Aide()
+        {
+            const int port = 27992;
+            string mod = Environment.GetEnvironmentVariable("JAK3ONLINE_MOD");
+            string sp = Environment.GetEnvironmentVariable("JAK3ONLINE_TMP");
+            Server s = new Server();
+            s.Start(port);
+            Process g1 = StartGame(mod, sp, Path.Combine(mod, "data"), "cfg");
+            Client a = new Client(); a.BridgeDir = Path.Combine(mod, "data", "online", "bridge"); a.WantedName = "LEON"; a.Ephemeral = true; a.ServerAddress = "127.0.0.1:" + port;
+            a.Start(); a.Connect();
+            Check("jeu detecte", Wait(() => a.GameAttached && a.NetState == Shm.NET_LOBBY, 180000));
+            IntPtr w = WindowOf(g1.Id); if (w != IntPtr.Zero) ShowWindow(w, 7);
+            Thread.Sleep(15000);
+            a.TestCommand(1);
+            Check("partie chargee", Wait(() => Loaded(a), 200000));
+            Thread.Sleep(8000);
+            foreach (int l in new int[] { 1, 0, 2 })
+            {
+                a.TestCommand(300 + l); Thread.Sleep(600);
+                a.TestCommand(85); Thread.Sleep(2500);
+                ShotOf(g1.Id, "a-connecte-langue" + l);
+                a.TestCommand(578); Thread.Sleep(1500);
+                ShotOf(g1.Id, "a-bas-langue" + l);
+                a.TestCommand(80); Thread.Sleep(1200);
+            }
+            a.TestCommand(301); Thread.Sleep(600);
+            a.TestCommand(85); Thread.Sleep(1500);
+            a.Stop();
+            Thread.Sleep(6000);
+            ShotOf(g1.Id, "a-sans-programme-fr");
+            // en allemand
+            Client c2 = new Client(); c2.BridgeDir = a.BridgeDir; c2.WantedName = "LEON"; c2.Ephemeral = true; c2.ServerAddress = a.ServerAddress;
+            c2.Start(); c2.Connect();
+            Wait(() => c2.GameAttached, 30000); Thread.Sleep(4000);
+            c2.TestCommand(80); Thread.Sleep(1200);
+            c2.TestCommand(302); Thread.Sleep(800);
+            c2.TestCommand(85); Thread.Sleep(1500);
+            c2.Stop();
+            Thread.Sleep(6000);
+            ShotOf(g1.Id, "a-sans-programme-de");
+            Check("le jeu tourne", !g1.HasExited);
+            s.Stop();
+            try { g1.Kill(); } catch (Exception) { }
+            Console.WriteLine(fails == 0 ? "TEST AIDE OK" : (fails + " TEST(S) EN ECHEC"));
             return fails;
         }
 
@@ -5772,9 +6964,9 @@ namespace Jak3Online
             b.TestCommand(83); Thread.Sleep(2500);
             Console.WriteLine("   J2 passager : cache " + ((Gflags(b) & 4) != 0) + "  distance a J1 " + Dist(PosOf(a), PosOf(b)).ToString("0.0") + " m");
             ShotOf(g2.Id, "f8c-passager-j2"); ShotOf(g1.Id, "f8c-passager-vu-par-j1");
-            Check("J2 monte dans le vehicule de J1 (passager)", (Gflags(b) & 4) != 0 && Dist(PosOf(a), PosOf(b)) < 4.0);
+            Check("J2 monte dans le vehicule de J1 (passager assis a cote, visible)", (Gflags(b) & 0x400) != 0 && (Gflags(b) & 4) == 0 && Dist(PosOf(a), PosOf(b)) < 2.0);
             b.TestCommand(83); Thread.Sleep(2000);
-            Check("J2 redescend du vehicule", (Gflags(b) & 4) == 0);
+            Check("J2 redescend du vehicule", (Gflags(b) & 0x400) == 0);
                         // PERCUTER : J2 monte aussi dans son Sand Shark, J1 fonce dessus : les deux vehicules s'abiment
             b.TestCommand(245);
             Thread.Sleep(9000);
@@ -5805,7 +6997,7 @@ namespace Jak3Online
             ShotOf(g2.Id, "f10-lezard-vu-par-j2"); ShotOf(g1.Id, "f10-lezard-j1");
             a.TestCommand(76);
             // pseudos qui ne se chevauchent plus (3 bots autour de J1)
-            for (int k = 0; k < 3; k++) a.AddBot();
+            for (int k = 0; k < 3; k++) a.AddBotNow();
             Thread.Sleep(12000);
             ShotOf(g2.Id, "f11-pseudos-j2");
             Check("les deux jeux tournent a la fin", a.GameAttached && b.GameAttached && !g1.HasExited && !g2.HasExited);
@@ -6294,7 +7486,7 @@ namespace Jak3Online
             a.UiCreate(false, 100, true);
             Wait(() => a.SessionId != 0, 3000);
             for (int k = 0; k < 5; k++) { a.TestSetLocalState(1000f, 0f, 1000f); Thread.Sleep(100); }
-            a.AddBot();
+            a.AddBotNow();
             Check("le bot rejoint la session", Wait(() => { a.TestSetLocalState(1000f, 0f, 1000f); return a.SessionCount == 2; }, 8000));
             uint botId = 0;
             Check("le bot tourne autour du joueur", Wait(() => { a.TestSetLocalState(1000f, 0f, 1000f); foreach (PlayerEntry e in a.PlayersSnapshot()) if (e.Name == "Bot1") botId = e.Id; return botId != 0 && !float.IsNaN(a.TestRemoteX(botId)) && Math.Abs(a.TestRemoteX(botId) - 1000f) > 1000f; }, 8000));
@@ -6500,6 +7692,87 @@ namespace Jak3Online
             {
                 AllocConsole();
                 return SelfTest.Perso();
+            }
+            if (args.Length > 0 && args[0] == "--aide")
+            {
+                AllocConsole();
+                return SelfTest.Aide();
+            }
+            if (args.Length > 0 && args[0] == "--coop")
+            {
+                AllocConsole();
+                return SelfTest.Coop();
+            }
+            if (args.Length > 0 && args[0] == "--vehmap")
+            {
+                AllocConsole();
+                return SelfTest.VehMap();
+            }
+            if (args.Length > 0 && args[0] == "--events13")
+            {
+                AllocConsole();
+                return SelfTest.Events13();
+            }
+            if (args.Length > 0 && args[0] == "--acc13")
+            {
+                AllocConsole();
+                return SelfTest.Acc13();
+            }
+            if (args.Length > 0 && args[0] == "--coll")
+            {
+                AllocConsole();
+                SelfTest.CollOnly = true;
+                return SelfTest.Maj13b();
+            }
+            if (args.Length > 0 && args[0] == "--maj13b")
+            {
+                AllocConsole();
+                return SelfTest.Maj13b();
+            }
+            if (args.Length > 0 && args[0] == "--maj13")
+            {
+                AllocConsole();
+                return SelfTest.Maj13();
+            }
+            if (args.Length > 0 && args[0] == "--village")
+            {
+                AllocConsole();
+                return SelfTest.Village();
+            }
+            if (args.Length > 0 && args[0] == "--jak2swap")
+            {
+                AllocConsole();
+                return SelfTest.Jak2Swap();
+            }
+            if (args.Length > 0 && args[0] == "--maj12e")
+            {
+                AllocConsole();
+                return SelfTest.Maj12e();
+            }
+            if (args.Length > 0 && args[0] == "--j2local")
+            {
+                AllocConsole();
+                return SelfTest.J2Local();
+            }
+            if (args.Length > 0 && args[0] == "--maj12d")
+            {
+                AllocConsole();
+                return SelfTest.Maj12d();
+            }
+            if (args.Length > 0 && args[0] == "--maj12c")
+            {
+                AllocConsole();
+                return SelfTest.Maj12c();
+            }
+            if (args.Length > 0 && args[0] == "--maj12b")
+            {
+                AllocConsole();
+                return SelfTest.Maj12b();
+            }
+            if (args.Length > 0 && args[0] == "--maisons")
+            {
+                AllocConsole();
+                return SelfTest.Maisons();
             }
             if (args.Length > 0 && args[0] == "--vehnoms")
             {

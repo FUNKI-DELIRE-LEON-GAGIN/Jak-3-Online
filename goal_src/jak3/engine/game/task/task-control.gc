@@ -1069,6 +1069,10 @@
   )
 
 (defun task-node-close! ((arg0 game-task-node) (arg1 symbol))
+  ;; JAK 3 EN LIGNE : etape de mission validee -> les autres joueurs de la session privee
+  (if (and *ow-coop-hook* (not (task-node-closed? arg0)))
+      (*ow-coop-hook* 3 (the-as uint arg0) (the-as process #f))
+      )
   (open! (-> *game-info* sub-task-list arg0) arg1)
   0
   )

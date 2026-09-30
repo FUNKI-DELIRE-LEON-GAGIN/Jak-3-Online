@@ -543,6 +543,10 @@
 
 (defmethod go-die ((this enemy))
   "Go to the die state."
+  ;; JAK 3 EN LIGNE : ennemi tue -> les autres joueurs de la session privee
+  (if (and *ow-coop-hook* (-> this entity))
+      (*ow-coop-hook* 2 (-> this entity aid) this)
+      )
   (if (-> this enemy-info use-die-falling)
       (go (method-of-object this die-falling))
       (go (method-of-object this die))

@@ -9,7 +9,8 @@
   "double_sided_collide": true,
   "base_id": 700,
   "custom_models": [
-    "ow-plat"
+    "ow-plat",
+    "ow-bateau"
   ],
   "actors": []
 }

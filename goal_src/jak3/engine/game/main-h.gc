@@ -17,11 +17,19 @@
 (define-extern toggle-pause (function int))
 
 ;; jak 3 en ligne (voir pc/features/online.gc)
+(define *online-no-pause* #f) ;; jak 3 en ligne : en session, le menu debug ne fige pas le jeu
 (define *online-live-menu* #f) ;; menu Start ouvert en session : le jeu continue de tourner
 (define *online-no-pause* #f)  ;; en session : pas de pause simple (fenetre inactive...)
 ;; niveaux dont le rendu PC doit charger les maillages (FR3) en plus de ceux du jeu :
 ;; modeles des vehicules appeles hors de leur region (voir level.gc et online-world.gc)
 (define *online-extra-fr3* (new 'static 'boxed-array :type string "" "" "" "" ""))
+(define *online-voice-pitch* 0)
+;; jak 3 en ligne : la mer des cartes du mod (village de Jak 1) : hauteur (-1e9 = aucune) et zone
+(define *online-sea-y* -1000000000.0)
+(define *online-sea-x0* 0.0)
+(define *online-sea-x1* 0.0)
+(define *online-sea-z0* 0.0)
+(define *online-sea-z1* 0.0) ;; jak 3 en ligne : hauteur des sons de Jak (personnage choisi ; 1524 = une octave)
 ;; monde en ligne : brouillard repousse (voir drawable.gc, apres update-time-of-day)
 (define *online-fog-far* #f)
 (define *online-fr3-log* 0)  ;; banc de test : derniere trace des FR3 demandes (level.gc)

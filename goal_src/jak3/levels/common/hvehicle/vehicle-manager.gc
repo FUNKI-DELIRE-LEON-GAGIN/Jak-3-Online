@@ -235,7 +235,9 @@
     (cond
       ((level-get *level* (-> *traffic-info* vehicle-levels arg0))
        (let* ((a1-3 (type-from-vehicle-type arg0))
-              (s3-0 (get-process *default-dead-pool* a1-3 #x4000 1))
+              ;; jak 3 en ligne : le Hellcat (h-warf) a un squelette bien plus gros que les autres
+              ;; vehicules : avec la taille normale, il n'a plus de memoire pour ses os
+              (s3-0 (get-process *default-dead-pool* a1-3 (if (= arg0 (vehicle-type h-warf)) #x8000 #x4000) 1))
               (a0-4 (when s3-0
                       (let ((t9-3 (method-of-type process activate)))
                         (t9-3 s3-0 *vehicle-manager* "vehicle" (the-as pointer #x70004000))

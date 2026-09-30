@@ -5,6 +5,9 @@
 ;; name in dgo: target-gun
 ;; dgos: GAME
 
+;; JAK 3 EN LIGNE : Jak tire (online-world.gc montre ce tir aux autres joueurs) ; arg = type d'arme
+(define *ow-shot-hook* (the-as (function int none) #f))
+
 ;; DECOMP BEGINS
 
 (define *gun-walk-mods*

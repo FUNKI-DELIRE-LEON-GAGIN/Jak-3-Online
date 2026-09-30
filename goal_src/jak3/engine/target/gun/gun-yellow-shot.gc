@@ -1017,6 +1017,9 @@
 
 ;; WARN: Return type mismatch object vs (pointer process).
 (defbehavior target-gun-fire-yellow target ((arg0 pickup-type))
+  (if *ow-shot-hook*
+      (*ow-shot-hook* (the-as int arg0))
+      )
   (the-as (pointer process) (case arg0
                               (((pickup-type gun-yellow-1))
                                (gun-fire-yellow-1)

@@ -7,6 +7,13 @@
 
 ;; DECOMP BEGINS
 
+;; jak 3 en ligne : VUE A LA PREMIERE PERSONNE (R3), reprise du mod "Jak 4" : la camera cam-eye
+;; (celle du "regarder autour" de R3) posee a hauteur des yeux de Jak, un peu en avant ; le stick
+;; droit seul tourne la vue (le gauche fait marcher Jak). Pilote par online-world.gc (ow-fp-tick!).
+(define *online-fp* #f)
+(define *cam-eye-height-offset* 0.0)
+(define *cam-eye-forward-offset* 0.0)
+
 (defstate cam-no-trans (camera-slave)
   :event cam-standard-event-handler
   :enter (behavior ()
@@ -480,7 +487,7 @@
   :enter (behavior ()
     (when (not (-> self enter-has-run))
       (let ((v1-3
-              (vector-float*! (new-stack-vector0) (-> *camera* local-down) (+ 1024.0 (-> *camera* settings target-height)))
+              (vector-float*! (new-stack-vector0) (-> *camera* local-down) (+ 1024.0 (-> *camera* settings target-height) *cam-eye-height-offset*))
               )
             )
         (vector-! (-> self trans) (-> *camera* tpos-curr) v1-3)
@@ -489,7 +496,8 @@
       (set! (-> self blend-to-type) (camera-blend-to-type unknown-0))
       0
       )
-    (set! (-> self fov) 11650.845)
+    ;; premiere personne : champ de vision plus large (comme le mod Jak 4)
+    (set! (-> self fov) (if *online-fp* 17000.0 11650.845))
     )
   :exit (behavior ()
     (if (and *target*
@@ -511,21 +519,27 @@
           (let ((s4-0 (vector-reset! (new-stack-vector0)))
                 (s5-0 (new-stack-matrix0))
                 ;; og:preserve-this added for high fps
-                (rot-speed (* DISPLAY_FPS_RATIO (-> *CAM_EYE-bank* rot-speed)))
+                (rot-speed (* DISPLAY_FPS_RATIO (-> *CAM_EYE-bank* rot-speed) (if *online-fp* 2.6 1.0)))
                 )
             (when (not (logtest? (-> *camera* settings master-options) (cam-master-options IGNORE_ANALOG)))
               (let ((f30-0 (analog-input-horizontal-first ;; og:preserve-this
-                             (the-as int (+ (-> *cpad-list* cpads 0 rightx) -256 (-> *cpad-list* cpads 0 leftx)))
+                             (if *online-fp* ;; premiere personne : stick droit seul
+                                 (the-as int (+ (-> *cpad-list* cpads 0 rightx) -128))
+                                 (the-as int (+ (-> *cpad-list* cpads 0 rightx) -256 (-> *cpad-list* cpads 0 leftx)))
+                                 )
                              0.0
-                             48.0
+                             (if *online-fp* 20.0 48.0)
                              110.0
                              -1.0
                              )
                            )
                     (f0-0 (analog-input-vertical-first ;; og:preserve-this
-                            (the-as int (+ (-> *cpad-list* cpads 0 righty) -256 (-> *cpad-list* cpads 0 lefty)))
+                            (if *online-fp*
+                                (the-as int (+ (-> *cpad-list* cpads 0 righty) -128))
+                                (the-as int (+ (-> *cpad-list* cpads 0 righty) -256 (-> *cpad-list* cpads 0 lefty)))
+                                )
                             0.0
-                            48.0
+                            (if *online-fp* 20.0 48.0)
                             110.0
                             -1.0
                             )
@@ -619,10 +633,21 @@
             )
           )
         (let ((v1-75
-                (vector-float*! (new-stack-vector0) (-> *camera* local-down) (+ 1024.0 (-> *camera* settings target-height)))
+                (vector-float*! (new-stack-vector0) (-> *camera* local-down) (+ 1024.0 (-> *camera* settings target-height) *cam-eye-height-offset*))
                 )
               )
           (vector-! (-> self trans) (-> *camera* tpos-curr) v1-75)
+          )
+        ;; premiere personne : l'oeil un peu en avant de la tete (on ne voit pas l'interieur de Jak)
+        (when (and *online-fp* (!= *cam-eye-forward-offset* 0.0))
+          (let ((fwd (new-stack-vector0)))
+            (vector-copy! fwd (-> self tracking inv-mat fvec))
+            (set! (-> fwd y) 0.0)
+            (when (< 0.0001 (vector-length fwd))
+              (vector-normalize! fwd 1.0)
+              (vector+float*! (-> self trans) (-> self trans) fwd *cam-eye-forward-offset*)
+              )
+            )
           )
         (suspend)
         )

@@ -490,6 +490,9 @@
 (deftype online-part (process-drawable)
   ((kind  int32)
    (seen  time-frame)
+   (coll  symbol)        ;; vraie collision (vehicule d'un autre joueur)
+   (coll-on symbol)      ;; collision active en ce moment
+   (last-body vector :inline) ;; position de la carrosserie a l'image d'avant
    )
   (:states
     online-part-idle
@@ -521,11 +524,20 @@
    (parts        handle     11)
    (part-retry   time-frame 11)
    (obj-name     uint8      192)
+   (coll-on      symbol)       ;; son corps est solide (on se pousse, on monte sur sa tete)
+   (ghost-until  time-frame)   ;; on est apparus l'un dans l'autre : pas de collision un instant
+   (body         handle)       ;; son corps solide (ow-corps, voir plus bas)
+   (jak-seg      uint64)       ;; parties visibles du corps de Jak (avant un autre personnage)
+   (wear         int32)        ;; ses ACCESSOIRES (octet de la pose : tete 3 bits, visage 2, dos 3)
+   (accs         handle 3)     ;; les accessoires poses sur lui (ow-acc)
    )
   (:states
     online-puppet-idle
     )
   )
+
+;; jak 3 en ligne : collisions entre joueurs (#f : on se traverse, comme avant)
+(define *online-player-coll* #t)
 
 (defun online-level-visible? ((chars (pointer uint8)))
   "le niveau du joueur distant est-il charge et actif chez moi ?"
@@ -645,11 +657,52 @@
   :texture-level 11
   )
 
+;; 1.3 : les personnages de Jak 3 (maillages du jeu, recales sur le squelette de Jak)
+(def-actor ow-ashelin
+  :bounds (0 1.5 0 3.2)
+  :art (idle-ja)
+  :idle idle-ja
+  :texture-level 11
+  )
+
+(def-actor ow-torn
+  :bounds (0 1.5 0 3.2)
+  :art (idle-ja)
+  :idle idle-ja
+  :texture-level 11
+  )
+
+(def-actor ow-sig
+  :bounds (0 1.5 0 3.4)
+  :art (idle-ja)
+  :idle idle-ja
+  :texture-level 11
+  )
+
+(def-actor ow-samos
+  :bounds (0 1.5 0 3.4)
+  :art (idle-ja)
+  :idle idle-ja
+  :texture-level 11
+  )
+
 ;; 0 Jak, 1 Keira, 2 Jak 2, 3 Jak 1, 4 Jak 4, 5 Tess (corps sur le squelette de Jak),
 ;; 6 Daxter (le vrai mode Daxter du jeu : indax)
-(defconstant OW_PERSO_COUNT 7)
+(defconstant OW_PERSO_COUNT 11) ;; + 7 Ashelin, 8 Torn, 9 Sig, 10 Samos
 (defconstant OW_PERSO_DAXTER 6)
 (define *ow-perso-cur* 0) ;; personnage pose sur MON Jak (envoye aux autres dans la pose)
+
+(defun ow-perso-pitch ((k int))
+  "voix du personnage : plus aigue pour les filles, plus grave pour Torn, Sig et Samos
+   (1524 = une octave)"
+  (case k
+    ((1 5 7) 720)
+    ((8) -180)
+    ((9) -380)
+    ((10) -300)
+    (else 0)
+    )
+  )
 
 (defun ow-perso-skel ((k int))
   (case k
@@ -658,6 +711,10 @@
     ((3) *ow-jak1-sg*)
     ((4) *ow-jak4-sg*)
     ((5) *ow-tess-sg*)
+    ((7) *ow-ashelin-sg*)
+    ((8) *ow-torn-sg*)
+    ((9) *ow-sig-sg*)
+    ((10) *ow-samos-sg*)
     (else (the-as skeleton-group #f))
     )
   )
@@ -702,6 +759,10 @@
           (set! (-> dc level-index) (the-as uint (-> lev index)))
           (set! (-> dc default-texture-page) (the-as uint 0))
           )
+        ;; eclairage de Jak (comme le mod Jak 4) : sinon lumieres etranges sur les corps ajoutes
+        (if (and *target* (nonzero? (-> *target* draw)) (!= dc (-> *target* draw)))
+            (set! (-> dc light-index) (-> *target* draw light-index))
+            )
         )
       )
     (else
@@ -775,6 +836,17 @@
         (when (>= want 0)
           (when (setup-lods! lods (target-skel-group) (-> self draw art-group) (-> self entity))
             (lods-assign! (-> self draw) lods)
+            ;; retour d'un autre personnage : son maillage avait change les parties visibles (le
+            ;; corps de Jak ne se dessinait plus chez les autres) : on remet celles de depart
+            (cond
+              ((>= (-> self geo) 100)
+               (set! (-> self draw seg-mask) (-> self jak-seg))
+               (setup-masks (-> self draw) 0 0)
+               )
+              (else
+                (set! (-> self jak-seg) (-> self draw seg-mask))
+                )
+              )
             (set! ok #t)
             )
           )
@@ -812,7 +884,7 @@
   (let ((pos (vector-copy! (new 'stack-no-clear 'vector) (-> self root trans))))
     (+! (-> pos y) (meters 1.2))
     (set! (-> pos w) 1.0)
-    (sound-play "oof" :position pos)
+    (sound-play-by-name (static-sound-name "oof") (new-sound-id) 1024 (ow-perso-pitch (-> self perso)) 0 (sound-group) pos)
     (vector-copy! (-> *launch-matrix* trans) pos)
     (part-tracker-spawn part-tracker :to self :group group-target-hit)
     )
@@ -832,7 +904,28 @@
   (none)
   )
 
-(defbehavior online-puppet-post online-puppet ()
+(define-extern online-puppet-proc (function int online-puppet))
+
+(defun online-finite? ((f float))
+  "nombre valide (ni NaN ni infini)"
+  (and (= f f) (< (fabs f) 1000000000.0)))
+
+(define *ow-riding* #f)   ;; je suis passager (ecrit par online-world)
+(define *online-menu-open* #f) ;; menu SELECT ou boutique ouvert (ecrit par online-world)
+(define *ow-riding-id* (the-as uint 0)) ;; conducteur dont je suis passager (ecrit par online-world)
+
+(defun online-seat-offset! ((out vector) (q quaternion) (bike symbol))
+  "place du passager par rapport au conducteur : a cote en voiture, derriere (et plus haut) en moto"
+  (if bike
+      (set-vector! out 0.0 (meters 0.45) (meters -1.0) 0.0)
+      (set-vector! out (meters 1.1) 0.0 0.0 0.0)
+      )
+  (vector-orient-by-quat! out out q)
+  out
+  )
+
+
+(defbehavior online-puppet-post-main online-puppet ()
   (online-puppet-sync-geo!)
   (if (-> self fx-want)
       (online-puppet-play-fx!)
@@ -895,17 +988,62 @@
         )
       )
     ;; extrapolation courte entre deux paquets
-    (when (< (- now (-> self update-time)) (seconds 0.3))
+    (when (< (- now (-> self update-time)) (seconds 0.5))
       (vector+float*! (-> self goal-pos) (-> self goal-pos) (-> self vel) dt)
       (+! (-> self frame) (* (-> self frame-rate) (* 300.0 dt)))
       )
-    ;; lissage
-    (if (< (meters 12.0) (vector-vector-distance (-> self root trans) (-> self goal-pos)))
-        (vector-copy! (-> self root trans) (-> self goal-pos))
-        (vector-lerp! (-> self root trans) (-> self root trans) (-> self goal-pos) 0.35)
-        )
-    (quaternion-slerp! (-> self root quat) (-> self root quat) (-> self goal-quat) 0.35)
+    ;; lissage (le meme a 30 ou 60 images par seconde : pas d'a-coups quand un paquet arrive en retard)
+    (let ((k (fmax 0.05 (fmin 1.0 (* 16.0 dt)))))
+      (if (< (meters 12.0) (vector-vector-distance (-> self root trans) (-> self goal-pos)))
+          (vector-copy! (-> self root trans) (-> self goal-pos))
+          (vector-lerp! (-> self root trans) (-> self root trans) (-> self goal-pos) k)
+          )
+      (quaternion-slerp! (-> self root quat) (-> self root quat) (-> self goal-quat) k)
+      )
     (quaternion-normalize! (-> self root quat))
+    ;; PASSAGER : assis dans le vehicule du conducteur (a cote / derriere), cale sur son avatar
+    ;; (ou sur moi si c'est moi qui conduis) : il ne traine pas derriere le vehicule
+    (when (logtest? (-> rs flags) ONLINE_FLAG_PASSENGER)
+      (let ((dpos (the-as vector #f))
+            (dquat (the-as quaternion #f))
+            (bike #f)
+            (bd (meters 8.0))
+            )
+        (when (and *target* (focus-test? *target* pilot)
+                   (< (vector-vector-distance (-> *target* control trans) (-> self goal-pos)) bd)
+                   )
+          (set! bd (vector-vector-distance (-> *target* control trans) (-> self goal-pos)))
+          (set! dpos (-> *target* control trans))
+          (set! dquat (-> *target* control quat))
+          (set! bike (= (-> *target* skel root-channel 0 frame-group) (-> *target* draw art-group data 241)))
+          )
+        (dotimes (j ONLINE_MAX_PUPPETS)
+          (let ((p2 (online-puppet-proc j)))
+            (when (and p2 (!= p2 self) (-> p2 placed))
+              (let ((rs2 (-> *online-shm* remote (-> p2 slot))))
+                (when (logtest? (-> rs2 flags) ONLINE_FLAG_VEHICLE)
+                  (let ((d (vector-vector-distance (-> p2 root trans) (-> self goal-pos))))
+                    (when (< d bd)
+                      (set! bd d)
+                      (set! dpos (-> p2 root trans))
+                      (set! dquat (-> p2 root quat))
+                      (set! bike (logtest? (-> rs2 flags) ONLINE_FLAG_BIKE))
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        (when dpos
+          (let ((off (new 'stack-no-clear 'vector)))
+            (online-seat-offset! off dquat (the-as symbol bike))
+            (vector+! (-> self root trans) dpos off)
+            (quaternion-copy! (-> self root quat) dquat)
+            )
+          )
+        )
+      )
     ;; affichage : avec une pose, le squelette est ecrit par online-apply-poses!
     ;; (apres tous les processus) ; sinon animation de secours
     (let* ((dying (and (logtest? (-> rs flags) ONLINE_FLAG_DEAD) (< (- now (-> self dead-time)) (seconds 5))))
@@ -969,6 +1107,445 @@
   (none)
   )
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; COLLISIONS ENTRE JOUEURS : chaque autre joueur a un corps (deux spheres : le corps et la tete),
+;; solide pour Jak et "rideable" : on s'y cogne, on se pousse (chaque jeu pousse son propre Jak, donc
+;; celui qu'on bouscule est pousse chez lui), on peut monter sur sa tete et il nous emporte.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; le CORPS (modele ow-corps.glb : colonne de 0,9 x 1,9 m, jamais dessinee ; son maillage de
+;; collision est genere comme celui des plateformes). Son art est dans GAME : il existe partout.
+(def-actor ow-corps
+  :bounds (0 1 0 2)
+  )
+
+(deftype ow-corps (process-drawable)
+  ((root    collide-shape :override)
+   (owner   handle)
+   (solid   symbol)
+   )
+  (:states
+    ow-corps-idle
+    )
+  )
+
+(defbehavior ow-corps-set! ow-corps ((on symbol))
+  (when (!= on (-> self solid))
+    (set! (-> self solid) on)
+    (let ((rp (-> self root root-prim)))
+      (cond
+        (on
+          (set! (-> rp prim-core collide-as) (-> self root backup-collide-as))
+          (set! (-> rp prim-core collide-with) (-> self root backup-collide-with))
+          )
+        (else
+          (set! (-> rp prim-core collide-as) (collide-spec))
+          (set! (-> rp prim-core collide-with) (collide-spec))
+          (set! (-> self root num-riders) (the-as uint 0))
+          (set! (-> self root riders) (the-as (inline-array collide-rider) #f))
+          )
+        )
+      )
+    )
+  (none)
+  )
+
+(defbehavior ow-corps-bone! ow-corps ()
+  "jamais dessine, donc pas de calcul d'os : on pose nous-memes l'os du maillage de collision"
+  (let ((m (-> self node-list data 0 bone transform)))
+    (matrix-identity! m)
+    (vector-copy! (-> m trans) (-> self root trans))
+    (set! (-> m trans w) 1.0)
+    )
+  (none)
+  )
+
+(defstate ow-corps-idle (ow-corps)
+  :trans (behavior ()
+    (let ((p (the-as online-puppet (handle->process (-> self owner)))))
+      (cond
+        ((not p)
+         (deactivate self)
+         )
+        (else
+          ;; qui est debout sur sa tete (avant de le deplacer)
+          (if (-> self solid)
+              (rider-trans)
+              )
+          (ow-corps-set! (-> p coll-on))
+          (vector-copy! (-> self root trans) (-> p root trans))
+          (set! (-> self root trans w) 1.0)
+          )
+        )
+      )
+    )
+  :code (behavior ()
+    (until #f
+      (suspend)
+      )
+    #f
+    )
+  :post (behavior ()
+    (ow-corps-bone!)
+    (update-transforms (-> self root))
+    (when (-> self solid)
+      (pull-riders! (-> self root))
+      (do-push-aways (-> self root))
+      )
+    )
+  )
+
+(defbehavior ow-corps-init-by-other ow-corps ((owner handle) (pos vector))
+  (let ((cs (new 'process 'collide-shape self (collide-list-enum hit-by-player))))
+    (let ((mesh (new 'process 'collide-shape-prim-mesh cs (the-as uint 0) (the-as uint 0))))
+      ;; comme les plateformes des parcours (qui marchent) : un "pusher"
+      (set! (-> mesh prim-core collide-as) (collide-spec pusher))
+      (set! (-> mesh prim-core collide-with) (collide-spec jak player-list))
+      (set! (-> mesh prim-core action) (collide-action solid rideable))
+      (set! (-> mesh transform-index) 0)
+      (set-vector! (-> mesh local-sphere) 0.0 (meters 1.0) 0.0 (meters 1.6))
+      (set! (-> cs total-prims) (the-as uint 1))
+      (set! (-> cs root-prim) mesh)
+      )
+    (pusher-init cs)
+    (set! (-> cs nav-radius) (meters 0.6))
+    (set! (-> cs rider-max-momentum) (meters 20.0))
+    (let ((rp (-> cs root-prim)))
+      (set! (-> cs backup-collide-as) (-> rp prim-core collide-as))
+      (set! (-> cs backup-collide-with) (-> rp prim-core collide-with))
+      )
+    (set! (-> self root) cs)
+    )
+  (set! (-> self owner) owner)
+  (set! (-> self solid) #t)
+  (vector-copy! (-> self root trans) pos)
+  (quaternion-identity! (-> self root quat))
+  (vector-identity! (-> self root scale))
+  (initialize-skeleton self (the-as skeleton-group *ow-corps-sg*) (the-as pair 0))
+  (logior! (-> self skel status) (joint-control-status sync-math))
+  ;; jamais dessine (collision seulement)
+  (logior! (-> self draw status) (draw-control-status no-draw))
+  (logclear! (-> self mask) (process-mask actor-pause))
+  (logior! (-> self mask) (process-mask platform))
+  (ow-corps-bone!)
+  (update-transforms (-> self root))
+  (ow-corps-set! #f)
+  (go ow-corps-idle)
+  )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; ACCESSOIRES (1.3) : un petit modele (ow-acc0..13.glb, dans GAME) pose sur un os du personnage.
+;; Les modeles sont faits dans l'espace du personnage (Y en haut, Z devant, en metres) autour de
+;; l'origine de l'os : tete = neckB (8), dos = chest (6). La rotation suit l'os : os courant x
+;; pose de reference (bind-pose) = repere du personnage, meme quand il saute ou se penche.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def-actor ow-acc0
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc1
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc2
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc3
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc4
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc5
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc6
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc7
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc8
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc9
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc10
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc11
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc12
+  :bounds (0 0 0 2)
+  )
+(def-actor ow-acc13
+  :bounds (0 0 0 2)
+  )
+
+(defun ow-acc-sg ((k int))
+  (case k
+    ((0) *ow-acc0-sg*)
+    ((1) *ow-acc1-sg*)
+    ((2) *ow-acc2-sg*)
+    ((3) *ow-acc3-sg*)
+    ((4) *ow-acc4-sg*)
+    ((5) *ow-acc5-sg*)
+    ((6) *ow-acc6-sg*)
+    ((7) *ow-acc7-sg*)
+    ((8) *ow-acc8-sg*)
+    ((9) *ow-acc9-sg*)
+    ((10) *ow-acc10-sg*)
+    ((11) *ow-acc11-sg*)
+    ((12) *ow-acc12-sg*)
+    ((13) *ow-acc13-sg*)
+    (else (the-as skeleton-group #f))
+    )
+  )
+
+;; accessoire k (0..13) -> emplacement (0 tete, 1 visage, 2 dos) et numero dans l'emplacement
+(define *ow-acc-slot* (new 'static 'array int8 14 0 0 0 0 0 0 0 1 1 1 2 2 2 2))
+(define *ow-acc-index* (new 'static 'array int8 14 1 2 3 4 5 6 7 1 2 3 1 2 3 4))
+(define *ow-acc-rotfix* #t) ;; #t : l'accessoire suit la rotation de l'os (sinon celle du corps)
+
+(defun ow-acc-find ((slot int) (index int))
+  (let ((r -1))
+    (dotimes (k 14)
+      (if (and (= (-> *ow-acc-slot* k) slot) (= (-> *ow-acc-index* k) index))
+          (set! r k)
+          )
+      )
+    r
+    )
+  )
+
+(defun ow-acc-packed ()
+  "mes accessoires portes (valides par le programme), en un octet : tete 3 bits, visage 2, dos 3"
+  (let ((w (the-as int (-> *online-ext* cosm-wear))))
+    (logior (logand w 7) (ash (logand (ash w -8) 3) 3) (ash (logand (ash w -16) 7) 5))
+    )
+  )
+
+(deftype ow-acc (process-drawable)
+  ((owner   handle)
+   (joint   int32)
+   (item    int32)
+   (fp-hide symbol)
+   )
+  (:states
+    ow-acc-idle
+    )
+  )
+
+(defbehavior ow-acc-place! ow-acc ()
+  "pose l'accessoire sur l'os de son porteur ; #f s'il ne faut pas le montrer"
+  (let ((o (the-as process-drawable (handle->process (-> self owner))))
+        (ok #f)
+        )
+    (when (and o
+               (nonzero? (-> o draw))
+               (nonzero? (-> o node-list))
+               (< (-> self joint) (-> o node-list length))
+               (not (logtest? (-> o draw status) (draw-control-status no-draw no-draw-temp)))
+               (not (and (-> self fp-hide) *online-fp* (= o *target*)))
+               )
+      (let* ((cs (-> o node-list data (-> self joint)))
+             (bm (-> cs bone transform))
+             (m (new 'stack-no-clear 'matrix))
+             (sc 1.0)
+             )
+        (cond
+          ((and *ow-acc-rotfix* (-> cs joint))
+           (matrix*! m (-> cs joint bind-pose) bm)
+           )
+          (else
+            (quaternion->matrix m (-> o root quat))
+            )
+          )
+        ;; echelle (grosse tete, etc.) : longueur de la 1re ligne ; puis rotation pure
+        (set! sc (vector-length (-> m vector 0)))
+        (when (< 0.01 sc)
+          (vector-normalize! (-> m vector 0) 1.0)
+          (vector-normalize! (-> m vector 1) 1.0)
+          (vector-normalize! (-> m vector 2) 1.0)
+          (matrix->quaternion (-> self root quat) m)
+          (quaternion-normalize! (-> self root quat))
+          (vector-copy! (-> self root trans) (-> bm trans))
+          (set! (-> self root trans w) 1.0)
+          (let ((s (fmax 0.25 (fmin 4.0 (if *ow-acc-rotfix* sc 1.0)))))
+            (set-vector! (-> self root scale) s s s 1.0)
+            )
+          (set! ok #t)
+          )
+        )
+      )
+    ok
+    )
+  )
+
+(defstate ow-acc-idle (ow-acc)
+  :code (behavior ()
+    (until #f
+      (suspend)
+      )
+    #f
+    )
+  :post (behavior ()
+    (cond
+      ((not (handle->process (-> self owner)))
+       (deactivate self)
+       )
+      ((ow-acc-place!)
+       (ow-perso-draw-level! (-> self draw) #t)
+       (logclear! (-> self draw status) (draw-control-status no-draw))
+       (ja-post)
+       )
+      (else
+        (logior! (-> self draw status) (draw-control-status no-draw))
+        )
+      )
+    )
+  )
+
+(defbehavior ow-acc-init-by-other ow-acc ((owner handle) (item int))
+  (set! (-> self root) (new 'process 'trsqv))
+  (set! (-> self owner) owner)
+  (set! (-> self item) item)
+  (set! (-> self joint) (if (= (-> *ow-acc-slot* item) 2) 6 8))
+  (set! (-> self fp-hide) (!= (-> *ow-acc-slot* item) 2))
+  (vector-reset! (-> self root trans))
+  (quaternion-identity! (-> self root quat))
+  (vector-identity! (-> self root scale))
+  (initialize-skeleton self (ow-acc-sg item) (the-as pair 0))
+  (logclear! (-> self mask) (process-mask actor-pause))
+  (logior! (-> self draw status) (draw-control-status no-draw))
+  (go ow-acc-idle)
+  )
+
+(defun ow-acc-sync! ((owner process-drawable) (hs (pointer handle)) (packed int) (fp symbol))
+  "met les bons accessoires sur 'owner' (octet : tete 3 bits, visage 2, dos 3) ; hs = 3 poignees"
+  (dotimes (slot 3)
+    (let* ((idx (case slot
+                  ((0) (logand packed 7))
+                  ((1) (logand (ash packed -3) 3))
+                  (else (logand (ash packed -5) 7))
+                  ))
+           (want (if (> idx 0) (ow-acc-find slot idx) -1))
+           (cur (the-as ow-acc (handle->process (-> hs slot))))
+           )
+      (when (and cur (!= (-> cur item) want))
+        (deactivate cur)
+        (set! (-> hs slot) (the-as handle #f))
+        (set! cur #f)
+        )
+      (when (and (not cur) (>= want 0) owner (ow-acc-sg want) (nonzero? (ow-acc-sg want)))
+        (let ((pp (process-spawn ow-acc (process->handle owner) want :name "ow-acc" :to owner)))
+          (set! (-> hs slot) (if pp (ppointer->handle pp) (the-as handle #f)))
+          )
+        )
+      )
+    )
+  (none)
+  )
+
+(deftype ow-acc-holder (structure)
+  ((h  handle 3)
+   )
+  )
+
+(define *ow-acc-mine* (let ((hh (new 'global 'ow-acc-holder)))
+                        (dotimes (k 3)
+                          (set! (-> hh h k) (the-as handle #f))
+                          )
+                        hh
+                        ))
+
+(defun ow-acc-cam-test! ((back symbol))
+  "banc de test : Jak se tourne vers la camera (ou lui tourne le dos)"
+  (let ((t *target*))
+    (when t
+      (let ((d (vector-! (new 'stack-no-clear 'vector) (math-camera-pos) (-> t control trans)))
+            (q (new 'stack-no-clear 'quaternion))
+            )
+        (set! (-> d y) 0.0)
+        (if back (vector-negate! d d))
+        (vector-normalize! d 1.0)
+        (forward-up->quaternion q d *up-vector*)
+        (set-quaternion! (-> t control) q)
+        (quaternion-copy! (-> t control dir-targ) q)
+        )
+      )
+    )
+  (none)
+  )
+
+(defun ow-acc-local-tick! ()
+  "MES accessoires (sur mon Jak), s'il existe"
+  (let ((t *target*))
+    (if (and t (nonzero? (-> t draw)) (!= *ow-perso-cur* OW_PERSO_DAXTER))
+        (ow-acc-sync! t (-> *ow-acc-mine* h) (ow-acc-packed) #t)
+        (dotimes (k 3)
+          (let ((p (handle->process (-> *ow-acc-mine* h k))))
+            (if p (deactivate p))
+            )
+          (set! (-> *ow-acc-mine* h k) (the-as handle #f))
+          )
+        )
+    )
+  (none)
+  )
+
+(defbehavior online-puppet-coll-set! online-puppet ((on symbol))
+  (set! (-> self coll-on) on)
+  ;; le corps existe des qu'il faut de la collision (il suit l'avatar tout seul)
+  (when (and on (not (handle->process (-> self body))) (nonzero? *ow-corps-sg*))
+    (let ((pp (process-spawn ow-corps (process->handle self) (-> self root trans) :name "ow-corps" :to self)))
+      (if pp
+          (set! (-> self body) (ppointer->handle pp))
+          )
+      )
+    )
+  (none)
+  )
+
+(defbehavior online-puppet-coll-want? online-puppet ()
+  (let ((rs (-> *online-shm* remote (-> self slot)))
+        (t *target*)
+        (now (online-now))
+        )
+    (cond
+      ((or (not *online-player-coll*) (not t) (not (-> self placed)) (not (-> self shown))
+           (logtest? (-> rs flags) (logior ONLINE_FLAG_DEAD ONLINE_FLAG_HIDDEN ONLINE_FLAG_VEHICLE ONLINE_FLAG_BOARD ONLINE_FLAG_PASSENGER ONLINE_FLAG_PAUSED))
+           (focus-test? t pilot dead board)
+           (< (meters 30.0) (vector-vector-distance (-> self root trans) (-> t control trans)))
+           )
+       #f
+       )
+      (else
+        ;; apparus l'un dans l'autre (teleportation, reapparition) : fantome un instant, jamais d'ejection
+        (let ((dx (- (-> t control trans x) (-> self root trans x)))
+              (dz (- (-> t control trans z) (-> self root trans z)))
+              (dy (- (-> t control trans y) (-> self root trans y)))
+              )
+          (if (and (not (-> self coll-on)) (< (+ (* dx dx) (* dz dz)) (* (meters 0.7) (meters 0.7))) (< (fabs dy) (meters 1.6)))
+              (set! (-> self ghost-until) (+ now (seconds 0.5)))
+              )
+          )
+        (< (-> self ghost-until) now)
+        )
+      )
+    )
+  )
+
+(defbehavior online-puppet-post online-puppet ()
+  (online-puppet-post-main)
+  ;; ses accessoires
+  (ow-acc-sync! self (-> self accs) (if (and (-> self placed) (-> self shown) (!= (-> self perso) OW_PERSO_DAXTER)) (-> self wear) 0) #f)
+  ;; son corps solide (ow-corps) le suit et emporte ceux qui sont sur sa tete
+  (online-puppet-coll-set! (the-as symbol (online-puppet-coll-want?)))
+  (none)
+  )
+
 (defstate online-puppet-idle (online-puppet)
   :code (behavior ()
     (until #f
@@ -981,7 +1558,14 @@
 
 (defbehavior online-puppet-init online-puppet ((slot int))
   (set! (-> self slot) slot)
+  (set! (-> self wear) 0)
+  (dotimes (k 3)
+    (set! (-> self accs k) (the-as handle #f))
+    )
   (set! (-> self root) (new 'process 'trsqv))
+  (set! (-> self coll-on) #f)
+  (set! (-> self ghost-until) 0)
+  (set! (-> self body) (the-as handle #f))
   (vector-identity! (-> self root scale))
   (quaternion-identity! (-> self root quat))
   (initialize-skeleton
@@ -1016,6 +1600,7 @@
     (set! (-> self obj-name k) (the-as uint 0))
     )
   (set! (-> self draw lod-set max-lod) 0)
+  (set! (-> self jak-seg) (-> self draw seg-mask))
   (go online-puppet-idle)
   )
 
@@ -1160,17 +1745,31 @@
                    (nonzero? (-> dc skeleton))
                    (not (logtest? (-> dc status) (draw-control-status no-draw no-draw-temp uninited)))
                    )
-          (let* ((n (-> dc skeleton length))
+          (let* ((total (-> dc skeleton length))
+                 (n total)
                  (need (+ ONLINE_PART_HDR (* n ONLINE_BONE_SIZE)))
+                 (partial #f)
                  )
+            ;; gros vehicule (le Hellcat) : il ne tient pas en entier dans la pose. On envoie ses
+            ;; premiers os (dont la carrosserie) ; l'autre jeu place les autres dans leur position
+            ;; de repos autour de la carrosserie (voir online-part-fill-rest!)
+            (when (and (= kind ONLINE_PART_OBJECT) (< 0 n) (< n 256) (< ONLINE_POSE_MAX (+ ofs need)))
+              (let ((fit (/ (- ONLINE_POSE_MAX ofs ONLINE_PART_HDR) ONLINE_BONE_SIZE)))
+                (when (>= fit 6)
+                  (set! n fit)
+                  (set! need (+ ONLINE_PART_HDR (* n ONLINE_BONE_SIZE)))
+                  (set! partial #t)
+                  )
+                )
+              )
             (when (and (< 0 n) (< n 256) (<= (+ ofs need) ONLINE_POSE_MAX))
               (online-set-u8! buf ofs kind)
               (online-set-u8! buf (+ ofs 1) n)
-              (online-set-u8! buf (+ ofs 2) (if (logtest? (-> dc status) (draw-control-status force-fade)) 1 0))
+              (online-set-u8! buf (+ ofs 2) (logior (if (logtest? (-> dc status) (draw-control-status force-fade)) 1 0) (if partial 2 0)))
               (online-set-u8! buf (+ ofs 3) (-> dc global-effect))
               (online-set-u8! buf (+ ofs 4) (-> dc force-fade))
               (online-set-u8! buf (+ ofs 5) geo)
-              (online-set-u16! buf (+ ofs 6) 0)
+              (online-set-u16! buf (+ ofs 6) (if partial total 0))
               (online-set-u32! buf (+ ofs 8) (-> dc seg-mask))
               (online-set-u8! buf (+ ofs 12) (online-color-byte (-> dc color-mult x)))
               (online-set-u8! buf (+ ofs 13) (online-color-byte (-> dc color-mult y)))
@@ -1365,7 +1964,7 @@
             (set! len (online-pose-add-part! buf len ONLINE_PART_JAK t inv geo))
             ;; personnage choisi (0 = Jak) : case libre de l'en-tete de la piece
             (if (< jofs len)
-                (online-set-u16! buf (+ jofs 6) *ow-perso-cur*)
+                (online-set-u16! buf (+ jofs 6) (logior *ow-perso-cur* (ash (ow-acc-packed) 8)))
                 )
             )
           (when (!= len before)
@@ -1413,7 +2012,7 @@
                   )
                 )
               )
-            (when (and (-> t sidekick) (or (zero? *ow-perso-cur*) (= *ow-perso-cur* OW_PERSO_DAXTER)))
+            (when (and (-> t sidekick) (or (<= *ow-perso-cur* 4) (= *ow-perso-cur* OW_PERSO_DAXTER)))
               (set! len (online-pose-add-part! buf len ONLINE_PART_DAXTER (-> t sidekick 0) inv 0))
               (when (!= len before)
                 (+! count 1)
@@ -1674,8 +2273,213 @@
     )
   )
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; VRAIE COLLISION des vehicules des autres joueurs.
+;; Le maillage de collision est celui du vrai vehicule (dans son modele) : Jak marche dessus, y
+;; grimpe, et le vehicule l'emporte en roulant (comme une plateforme du jeu). Des spheres le long
+;; de la carrosserie : mon vehicule rentre vraiment dedans.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define *online-part-coll* #f) ;; la prochaine piece creee est une carrosserie
+
+(defun online-part-collide-init! ((self online-part))
+  (let* ((jg (-> self draw jgeo))
+         (meshes (if (and jg (nonzero? jg))
+                     (res-lump-struct (-> jg extra) 'collide-mesh-group (array collide-mesh))
+                     (the-as (array collide-mesh) #f)
+                     )
+                 )
+         )
+    (when (and meshes (nonzero? meshes) (> (-> meshes length) 0) (-> meshes 0))
+      (let* ((m (-> meshes 0))
+             ;; le maillage est lie a un joint ; l'os correspondant est le suivant (os 0 = racine)
+             (joint (+ (-> m joint-id) 1))
+             (lo (new 'stack-no-clear 'vector))
+             (hi (new 'stack-no-clear 'vector))
+             )
+        (set-vector! lo 100000000.0 100000000.0 100000000.0 1.0)
+        (set-vector! hi -100000000.0 -100000000.0 -100000000.0 1.0)
+        (dotimes (i (the-as int (-> m num-verts)))
+          (let ((v (-> m vertex-data i)))
+            (set! (-> lo x) (fmin (-> lo x) (-> v x)))
+            (set! (-> lo y) (fmin (-> lo y) (-> v y)))
+            (set! (-> lo z) (fmin (-> lo z) (-> v z)))
+            (set! (-> hi x) (fmax (-> hi x) (-> v x)))
+            (set! (-> hi y) (fmax (-> hi y) (-> v y)))
+            (set! (-> hi z) (fmax (-> hi z) (-> v z)))
+            )
+          )
+        (when (and (< (-> lo x) (-> hi x)) (< (-> lo y) (-> hi y)) (< (-> lo z) (-> hi z))
+                   (< (- (-> hi x) (-> lo x)) (meters 30.0)) (< (- (-> hi z) (-> lo z)) (meters 30.0))
+                   (>= joint 0) (nonzero? (-> self node-list)) (< joint (-> self node-list length))
+                   )
+          (let* ((ex (- (-> hi x) (-> lo x)))
+                 (ey (- (-> hi y) (-> lo y)))
+                 (ez (- (-> hi z) (-> lo z)))
+                 (cx (* 0.5 (+ (-> hi x) (-> lo x))))
+                 (cy (* 0.5 (+ (-> hi y) (-> lo y))))
+                 (cz (* 0.5 (+ (-> hi z) (-> lo z))))
+                 (whole (* 0.5 (sqrtf (+ (* ex ex) (* ey ey) (* ez ez)))))
+                 ;; spheres le long de l'axe le plus long de la carrosserie
+                 (ax (cond ((and (>= ex ey) (>= ex ez)) 0) ((>= ey ez) 1) (else 2)))
+                 (len (case ax ((0) ex) ((1) ey) (else ez)))
+                 (thick (case ax ((0) (fmin ey ez)) ((1) (fmin ex ez)) (else (fmin ex ey))))
+                 (r (fmax (meters 0.6) (fmin (meters 2.0) (* 0.5 thick))))
+                 (n (max 1 (min 4 (the int (+ 0.5 (/ len (* 2.0 r)))))))
+                 (cs (new 'process 'collide-shape self (collide-list-enum hit-by-player)))
+                 (grp (new 'process 'collide-shape-prim-group cs (the-as uint (+ n 1)) 0))
+                 )
+            (set! (-> cs total-prims) (the-as uint (+ n 2)))
+            (set! (-> cs root-prim) grp)
+            (set! (-> grp prim-core action) (collide-action solid rideable))
+            (set! (-> grp prim-core collide-as) (collide-spec vehicle-sphere vehicle-mesh))
+            (set! (-> grp prim-core collide-with) (collide-spec jak player-list))
+            (set! (-> grp transform-index) joint)
+            (set-vector! (-> grp local-sphere) cx cy cz (+ whole (meters 1.0)))
+            ;; le maillage du vrai vehicule : Jak s'y tient debout
+            (let ((pm (new 'process 'collide-shape-prim-mesh cs (the-as uint 0) (the-as uint 0))))
+              (set! (-> pm prim-core action) (collide-action solid rideable))
+              (set! (-> pm prim-core collide-as) (collide-spec vehicle-mesh))
+              (set! (-> pm prim-core collide-with) (collide-spec jak player-list))
+              (set! (-> pm transform-index) joint)
+              (set-vector! (-> pm local-sphere) cx cy cz whole)
+              )
+            ;; les spheres : les autres vehicules (le mien) rebondissent dessus
+            (dotimes (k n)
+              (let ((ps (new 'process 'collide-shape-prim-sphere cs (the-as uint (+ k 1))))
+                    (t (if (= n 1) 0.5 (/ (the float k) (the float (+ n -1)))))
+                    )
+                (set! (-> ps prim-core action) (collide-action solid))
+                (set! (-> ps prim-core collide-as) (collide-spec vehicle-sphere))
+                (set! (-> ps prim-core collide-with) (collide-spec))
+                (set! (-> ps transform-index) joint)
+                (let ((along (+ (- (* 0.5 len)) r (* t (fmax 0.0 (- len (* 2.0 r)))))))
+                  (case ax
+                    ((0) (set-vector! (-> ps local-sphere) (+ cx along) cy cz r))
+                    ((1) (set-vector! (-> ps local-sphere) cx (+ cy along) cz r))
+                    (else (set-vector! (-> ps local-sphere) cx cy (+ cz along) r))
+                    )
+                  )
+                )
+              )
+            (vector-copy! (-> cs trans) (-> self root trans))
+            (quaternion-identity! (-> cs quat))
+            (vector-identity! (-> cs scale))
+            (set! (-> cs rider-max-momentum) (meters 40.0))
+            (set! (-> cs backup-collide-as) (-> grp prim-core collide-as))
+            (set! (-> cs backup-collide-with) (-> grp prim-core collide-with))
+            (set! (-> self root) cs)
+            (find-collision-meshes cs)
+            ;; eteinte tant que la piece n'est pas placee
+            (set! (-> grp prim-core collide-as) (collide-spec))
+            (set! (-> grp prim-core collide-with) (collide-spec))
+            (set! (-> self coll) #t)
+            (set! (-> self coll-on) #f)
+            (format 0 "[jak3-online] collision ~S : ~D maillage(s), os ~D, ~D spheres, longueur ~M~%"
+                    (-> jg name) (-> meshes length) joint n len)
+            )
+          )
+        )
+      )
+    )
+  (none)
+  )
+
+(defun online-part-fill-rest! ((part online-part) (sent int))
+  "gros squelette recu en partie : les os manquants suivent la carrosserie dans leur position de
+   repos (celle du modele : os = inverse(repos de l'os) x repos de la carrosserie x carrosserie)"
+  (let* ((dc (-> part draw))
+         (jg (-> dc jgeo))
+         (total (-> dc skeleton length))
+         (kb (the-as int (-> dc origin-joint-index)))
+         )
+    (if (or (<= kb 0) (>= kb sent))
+        (set! kb (min 3 (+ sent -1)))
+        )
+    (when (and (> kb 0) (< sent total) jg (nonzero? jg) (<= total (+ (-> jg length) 1)))
+      (let ((tmp (new 'stack-no-clear 'matrix))
+            (inv (new 'stack-no-clear 'matrix))
+            (wb (-> dc skeleton bones kb transform))
+            (bb (-> jg data (+ kb -1) bind-pose))
+            (k sent)
+            )
+        (while (< k total)
+          (let ((jk (-> jg data (+ k -1))))
+            (matrix-4x4-inverse! inv (-> jk bind-pose))
+            (matrix*! tmp inv bb)
+            (matrix*! (-> dc skeleton bones k transform) tmp wb)
+            )
+          (+! k 1)
+          )
+        )
+      )
+    )
+  (none)
+  )
+
+(defun online-part-coll-enable! ((part online-part) (on symbol))
+  (when (and (-> part coll) (!= on (-> part coll-on)))
+    (let* ((cs (the-as collide-shape (-> part root)))
+           (grp (-> cs root-prim))
+           )
+      (set! (-> part coll-on) on)
+      (cond
+        (on
+          (set! (-> grp prim-core collide-as) (-> cs backup-collide-as))
+          (set! (-> grp prim-core collide-with) (-> cs backup-collide-with))
+          )
+        (else
+          (set! (-> grp prim-core collide-as) (collide-spec))
+          (set! (-> grp prim-core collide-with) (collide-spec))
+          (set! (-> cs num-riders) (the-as uint 0))
+          (set! (-> cs riders) (the-as (inline-array collide-rider) #f))
+          )
+        )
+      )
+    )
+  (none)
+  )
+
+(defun online-part-riders-begin! ((part online-part))
+  "avant de deplacer la carrosserie : qui est debout dessus ?"
+  (when (and (-> part coll) (-> part coll-on))
+    (let ((cs (the-as collide-shape (-> part root))))
+      (detect-riders! cs)
+      (vector-copy! (-> part last-body) (-> cs root-prim prim-core world-sphere))
+      )
+    )
+  (none)
+  )
+
+(defun online-part-riders-end! ((part online-part))
+  "apres : la collision suit la carrosserie et emporte ceux qui sont dessus"
+  (when (-> part coll)
+    (let ((cs (the-as collide-shape (-> part root))))
+      (update-transforms cs)
+      (when (-> part coll-on)
+        (let ((moved (vector-vector-distance (-> part last-body) (-> cs root-prim prim-core world-sphere))))
+          (cond
+            ;; teleportation ou donnees absurdes : on ne tire personne
+            ((or (!= moved moved) (< (meters 8.0) moved))
+             (set! (-> cs num-riders) (the-as uint 0))
+             (set! (-> cs riders) (the-as (inline-array collide-rider) #f))
+             )
+            (else
+              (pull-riders! cs)
+              (do-push-aways cs)
+              )
+            )
+          )
+        )
+      )
+    )
+  (none)
+  )
+
 (defbehavior online-part-init online-part ((kind int) (sg skeleton-group) (lev level))
   (set! (-> self kind) kind)
+  (set! (-> self coll) #f)
+  (set! (-> self coll-on) #f)
   ;; le modele d'un vehicule est dans le niveau (desert, ville...) ou dans GAME (vehicules
   ;; charges en permanence) : dans ce cas il est dessine comme un objet d'un vrai niveau
   (cond
@@ -1702,6 +2506,10 @@
        (initialize-skeleton self sg (the-as pair 0))
        (set! (-> sg janim) old)
        )
+     ;; carrosserie d'un vehicule : sa vraie collision
+     (if *online-part-coll*
+         (online-part-collide-init! self)
+         )
      )
     (else
       (initialize-skeleton self sg (the-as pair 0))
@@ -1966,7 +2774,15 @@
          (if (and sg (nonzero? sg) (= (-> sg type) skeleton-group) (-> *online* found-level)
                   (set! lev (online-skel-find-level sg (-> *online* found-level)))
                   )
-             (online-puppet-slot-part p ONLINE_PART_OBJECT slot n sg lev)
+             (let ((pp (begin
+                         (set! *online-part-coll* (zero? j))
+                         (online-puppet-slot-part p ONLINE_PART_OBJECT slot n sg lev)
+                         )
+                       )
+                   )
+               (set! *online-part-coll* #f)
+               pp
+               )
              (begin
                (set! (-> p part-retry slot) (+ (online-now) (seconds 2)))
                (the-as online-part #f)
@@ -1985,6 +2801,7 @@
   (let ((part (the-as online-part (handle->process (-> p parts kind)))))
     (when part
       (logior! (-> part draw status) (draw-control-status no-draw))
+      (online-part-coll-enable! part #f)
       ;; absente depuis longtemps, ou modele decharge : on libere la memoire
       (when (or (< (seconds 5) (- now (-> part seen)))
                 (not (online-art-stable? (-> part draw jgeo)))
@@ -2052,7 +2869,10 @@
                     (vector-copy! (-> root trans) (-> p root trans))
                     (set! (-> root trans w) 1.0)
                     ;; personnage choisi par ce joueur (0 = Jak)
-                    (set! (-> p perso) (online-get-u16 cur (+ jak-ofs 6)))
+                    (let ((pw (online-get-u16 cur (+ jak-ofs 6))))
+                      (set! (-> p perso) (logand pw 255))
+                      (set! (-> p wear) (logand (ash pw -8) 255))
+                      )
                     ;; Jak
                     (online-pose-write-part!
                       p
@@ -2088,7 +2908,12 @@
                                (set! nameofs (+ ofs ONLINE_PART_HDR))
                                )
                               ((and (= pk ONLINE_PART_OBJECT) (<= next clen) (< j ONLINE_MAX_OBJECTS) (>= nameofs 0))
-                               (let ((part (online-puppet-object-part p j n (the-as (pointer uint8) (&+ cur nameofs)))))
+                               (let ((part (online-puppet-object-part
+                                             p j
+                                             (if (logtest? (online-get-u8 cur (+ ofs 2)) 2) (max n (online-get-u16 cur (+ ofs 6))) n)
+                                             (the-as (pointer uint8) (&+ cur nameofs))
+                                             )
+                                           ))
                                  (when part
                                    (set! (-> part seen) now)
                                    (vector-copy! (-> part root trans) (-> p root trans))
@@ -2104,7 +2929,19 @@
                                          )
                                        )
                                      )
+                                   ;; vraie collision : pas pour le vehicule dans lequel je suis passager
+                                   (online-part-coll-enable!
+                                     part
+                                     (and (-> p shown)
+                                          (not (and *ow-riding* (= *ow-riding-id* (-> *online-shm* remote i player-id))))
+                                          )
+                                     )
+                                   (online-part-riders-begin! part)
                                    (online-pose-write-part! part cur ofs prev (online-pose-find-nth prev plen ONLINE_PART_OBJECT j n) alpha root #t)
+                                   (if (logtest? (online-get-u8 cur (+ ofs 2)) 2)
+                                       (online-part-fill-rest! part n)
+                                       )
+                                   (online-part-riders-end! part)
                                    )
                                  )
                                (+! j 1)
@@ -2196,7 +3033,19 @@
     )
   )
 
+(define-extern *ow-coop-sent* int)
+(define-extern *ow-coop-got* int)
+(define-extern *ow-shot-seen* int)
+
 (defun online-write-local! ()
+  ;; banc de test : coop envoyes / recus, tirs des autres montres
+  (let ((l (-> *online-shm* local)))
+    (set! (-> l pad 22) (the-as uint (logand *ow-coop-sent* 255)))
+    (set! (-> l pad 23) (the-as uint (logand *ow-coop-got* 255)))
+    (set! (-> l pad 24) (the-as uint (logand *ow-shot-seen* 255)))
+    ;; heure du jeu (x10) : le programme synchronise l'horloge du monde
+    (set! (-> l pad 31) (the-as uint (max 0 (min 240 (the int (* 10.0 (-> *time-of-day-context* time)))))))
+    )
   (let* ((shm *online-shm*)
          (loc (-> shm local))
          (t *target*)
@@ -2210,6 +3059,13 @@
            )
        (if (logtest? (-> t draw status) (draw-control-status no-draw))
            (set! flags (logior flags ONLINE_FLAG_HIDDEN))
+           )
+       ;; passager ; moto (le passager s'assoit derriere)
+       (if *ow-riding*
+           (set! flags (logior flags ONLINE_FLAG_PASSENGER))
+           )
+       (if (and (focus-test? t pilot) (= (-> t skel root-channel 0 frame-group) (-> t draw art-group data 241)))
+           (set! flags (logior flags ONLINE_FLAG_BIKE))
            )
        (if (logtest? (-> t control status) (collide-status on-surface))
            (set! flags (logior flags ONLINE_FLAG_GROUND))
@@ -2232,10 +3088,24 @@
        (if (paused?)
            (set! flags (logior flags ONLINE_FLAG_PAUSED))
            )
-       (vector-copy! (-> loc pos) (-> t control trans))
-       (set! (-> loc pos w) (-> t fact health))
-       (quaternion-copy! (-> loc quat) (-> t control quat))
-       (vector-copy! (-> loc vel) (-> t control transv))
+       ;; jamais de valeur invalide (NaN) : pendant certaines morts (noyade...) le jeu en produit un
+       ;; instant. On garde alors la derniere valeur valide (sinon les autres croyaient a une triche)
+       (let ((tr (-> t control trans))
+             (q (-> t control quat))
+             (v (-> t control transv))
+             )
+         (if (and (online-finite? (-> tr x)) (online-finite? (-> tr y)) (online-finite? (-> tr z)))
+             (vector-copy! (-> loc pos) tr)
+             )
+         (set! (-> loc pos w) (if (online-finite? (-> t fact health)) (-> t fact health) 0.0))
+         (if (and (online-finite? (-> q x)) (online-finite? (-> q y)) (online-finite? (-> q z)) (online-finite? (-> q w)))
+             (quaternion-copy! (-> loc quat) q)
+             )
+         (if (and (online-finite? (-> v x)) (online-finite? (-> v y)) (online-finite? (-> v z)))
+             (vector-copy! (-> loc vel) v)
+             (vector-reset! (-> loc vel))
+             )
+         )
        (set! (-> loc vel w) 0.0)
        (let ((ch (-> t skel root-channel 0)))
          (set! (-> loc anim-idx) (online-target-anim-index t (-> ch frame-group)))
@@ -2761,6 +3631,24 @@
   (none)
   )
 
+(defun online-print-fit ((str string) (x float) (y float) (w float) (scale float) (color font-color) (flags font-flags))
+  "comme online-print, mais sur UNE ligne : le texte trop long se retrecit au lieu de deborder"
+  (let* ((fc (new 'stack 'font-context *font-default-matrix* (the int x) (the int y) 0.0 color flags))
+         (enc (online-encode str))
+         )
+    (set-width! fc (the int w))
+    (set-height! fc 30)
+    (set-scale! fc scale)
+    (let ((tw (-> (get-string-length enc fc) length)))
+      (if (and (< w tw) (< 0.0 tw))
+          (set-scale! fc (fmax (* 0.35 scale) (* scale 0.97 (/ w tw))))
+          )
+      )
+    (print-game-text enc fc #f 44 *online-draw-bucket*)
+    )
+  (none)
+  )
+
 (defun online-text-height ((str string) (w float) (scale float))
   "hauteur (a l'ecran) d'un texte coupe sur la largeur w"
   (let ((fc (new 'stack 'font-context *font-default-matrix* 0 0 0.0 (font-color white) (font-flags shadow kerning large))))
@@ -2959,8 +3847,9 @@
           )
         )
       )
-    ;; messages recents (les 4 derniers, 7 secondes), en haut a droite, pas pendant le menu Start
-    (let ((y (if *progress-process* 9999.0 20.0)))
+    ;; messages recents (les 4 derniers, 7 secondes), en haut a droite, pas pendant les menus
+    ;; (menu Start, menu SELECT, boutique : ils passaient par-dessus)
+    (let ((y (if (or *progress-process* *online-menu-open*) 9999.0 20.0)))
       (dotimes (k 4)
         (let* ((n (- (-> shm feed-write) (the-as uint (+ k 1))))
                (slot (logand n 7))
@@ -3024,6 +3913,21 @@
         )
       (set! c (-> c 0 brother))
       )
+    )
+  (none)
+  )
+
+;; CAMERA "JAK 4" : reprise du mod d'exemple Jak 4 de Funki Delire (engine/mods/mod-custom-code.gc) :
+;; horloge de la camera x2 (elle suit et tourne deux fois plus vite), champ de vision large (plus large
+;; en vehicule), suivi rapide en vehicule (la camera suit vraiment la moto / la voiture de Haven).
+(defun online-camera-early! ()
+  (when (and *display* *math-camera*)
+    (update-rates! (-> *display* camera-clock) 2.0)
+    (set! (-> *math-camera* fov) (if (and *target* (focus-test? *target* pilot)) 17000.0 15000.0))
+    (set! (-> *math-camera* x-ratio) (tan (* 1.0 (-> *math-camera* fov))))
+    (if (and *target* (focus-test? *target* pilot))
+        (persist-with-delay *setting-control* 'rapid-tracking (seconds 0.5) 'rapid-tracking #t 0.0 0)
+        )
     )
   (none)
   )
@@ -3167,6 +4071,8 @@
 
 ;; banc de test (Jak3Online.exe --visual) : charger une partie, ouvrir le menu,
 ;; planche, arme, dark / light jak... pour verifier l'affichage des avatars
+(define *online-menu-sel-low* #f)
+
 (defun online-test-command! ((arg int))
   (let ((prog (if *progress-process* (-> *progress-process* 0) (the-as progress #f))))
     (case arg
@@ -3175,6 +4081,10 @@
        (if (and (not (handle->process (-> *game-info* auto-save-proc))) (not (movie?)))
            (auto-save-command 'restore 0 (+ arg -1) *default-pool* #f)
            )
+       )
+      ((578)
+       ;; banc de test : page EN LIGNE, bas de la liste selectionne
+       (set! *online-menu-sel-low* #t)
        )
       ((5)
        ;; ecran titre sans appuyer sur Start
@@ -3306,15 +4216,122 @@
   (none)
   )
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; JOUEUR 2 LOCAL : un 2e jeu dans une 2e fenetre du meme PC, avec une 2e manette (comme un ecran
+;; partage). Le programme lance ce 2e jeu (voir Jak3OnlineJ2.cs) et nous dit qui on est.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftype online-j2-size (structure)
+  ((w  int64)
+   (h  int64)
+   )
+  )
+
+(define *online-j2-size* (new 'static 'online-j2-size))
+(define *online-j2-flags* 0)
+(define *online-j2-mode* (the-as symbol #f)) ;; mode d'affichage avant le cote a cote
+(define *online-j2-w* 0)
+(define *online-j2-h* 0)
+(define *online-j2-report* (the-as time-frame 0))
+
+(defun online-local-j2? ()
+  "ce jeu est-il le joueur 2 local ?"
+  (logtest? (-> *online-ext* local-j2) 1))
+
+(defun online-local-j2-on? ()
+  "un joueur 2 local tourne a cote de ce jeu ?"
+  (logtest? (-> *online-ext* local-j2) 2))
+
+(defun online-j2-next-pad! ()
+  "joueur 2 : manette suivante"
+  (let ((n (pc-get-controller-count)))
+    (when (> n 0)
+      (pc-set-controller! (mod (+ (pc-get-controller-index 0) 1) n) 0)
+      )
+    )
+  (none)
+  )
+
+(defun online-j2-pad-name ((s string))
+  (let ((n (pc-get-controller-count))
+        (i (pc-get-controller-index 0))
+        )
+    (if (and (> n 0) (>= i 0) (< i n))
+        (format (clear s) "~D : ~S" (+ i 1) (pc-get-controller-name i *pc-cpp-temp-string*))
+        (format (clear s) (online-fr "aucune manette" "no controller"))
+        )
+    )
+  s
+  )
+
+(defun online-local-j2-tick! ()
+  (let ((f (the-as int (-> *online-ext* local-j2))))
+    ;; programme pas vivant : valeur laissee dans le fichier par un ancien lancement
+    (if (not (-> *online* companion-alive))
+        (set! f 0)
+        )
+    (when (!= f *online-j2-flags*)
+      (let ((old *online-j2-flags*))
+        (set! *online-j2-flags* f)
+        ;; deux jeux sur le meme PC : chacun lit SA manette, meme sans le focus de la fenetre
+        (pc-ignore-background-controller-events! (if (logtest? f 3) #f (-> *pc-settings* ignore-controller-win-unfocused?)))
+        (when (logtest? f 1)
+          ;; je suis le joueur 2 : pas de clavier (il sert au joueur 1) et ma propre manette
+          (pc-set-keyboard-enabled! #f)
+          (let ((pad (+ (logand (ash f -8) 255) -1)))
+            (if (and (>= pad 0) (< pad (pc-get-controller-count)))
+                (pc-set-controller! pad 0)
+                )
+            )
+          )
+        ;; fenetres cote a cote : chaque jeu passe en fenetre (l'ancien mode revient a la fin)
+        (cond
+          ((and (logtest? f 4) (not (logtest? old 4)))
+           (set! *online-j2-mode* (pc-get-display-mode))
+           (set! *online-j2-w* (-> *pc-settings* window-width))
+           (set! *online-j2-h* (-> *pc-settings* window-height))
+           (pc-get-active-display-size (&-> *online-j2-size* w) (&-> *online-j2-size* h))
+           (let ((dw (the int (-> *online-j2-size* w))))
+             (if (< dw 640)
+                 (set! dw 1920)
+                 )
+             (pc-set-display-mode! 'windowed (/ dw 2) (/ (* dw 9) 32))
+             )
+           )
+          ((and (logtest? old 4) (not (logtest? f 4)) *online-j2-mode*)
+           (if (= *online-j2-mode* 'windowed)
+               (pc-set-display-mode! 'windowed *online-j2-w* *online-j2-h*)
+               (pc-set-display-mode! *online-j2-mode* 0 0)
+               )
+           (set! *online-j2-mode* #f)
+           )
+          )
+        )
+      )
+    ;; pour le programme : ma manette (+1, 0 = aucune) et le nombre de manettes branchees
+    (when (< (seconds 1) (- (online-now) *online-j2-report*))
+      (set! *online-j2-report* (online-now))
+      (set! (-> *online-shm* local pad 32) (the-as uint (+ (pc-get-controller-index 0) 1)))
+      (set! (-> *online-shm* local pad 33) (the-as uint (pc-get-controller-count)))
+      )
+    )
+  (none)
+  )
+
 (defun online-update ()
   (online-log-parts!)
+  (online-local-j2-tick!)
   (let ((shm *online-shm*)
         (rt *online*)
         )
     (+! (-> shm game-frame) 1)
     (when (and (nonzero? (-> shm test-seq)) (!= (-> shm test-seq) (-> rt test-seen)))
       (set! (-> rt test-seen) (-> shm test-seq))
-      (online-test-command! (the-as int (-> shm test-arg)))
+      ;; programme pas (encore) vivant : c'est une commande laissee dans le fichier par un ancien
+      ;; lancement, on ne la rejoue pas
+      (if (-> rt companion-alive)
+          (online-test-command! (the-as int (-> shm test-arg)))
+          )
       )
     (when (and *online-kb-disabled*
                (or (not *progress-process*)
@@ -3375,7 +4392,8 @@
         (online-world-draw (the-as symbol in-session))
         )
       ;; Jak immobile pendant les menus (menu Start en direct, TAB, boutique, chat) ou s'il est gele
-      (online-live-input! (the-as symbol (or *online-block-live* (online-world-blocks-input?))))
+      (set! *online-no-pause* (the-as symbol (online-in-session?)))
+      (online-live-input! (the-as symbol (or *online-block-live* (online-world-blocks-input?) (= *master-mode* 'menu))))
       (online-bridge-write!)
       )
     )
@@ -3417,6 +4435,8 @@
 (defconstant ONLINE_IT_SAVESYNC 15)
 (defconstant ONLINE_IT_ADDBOT 16)
 (defconstant ONLINE_IT_WORLD 17)
+(defconstant ONLINE_IT_LOCALJ2 18)  ;; joueur 2 local (2e fenetre, 2e manette)
+(defconstant ONLINE_IT_J2PAD 19)    ;; joueur 2 : changer de manette
 
 (define *online-name-chars* " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
 
@@ -3503,9 +4523,15 @@
        (online-push-item! opt ONLINE_IT_SAVESYNC)
        )
      (online-push-item! opt ONLINE_IT_PLAYERS)
-     (online-push-item! opt ONLINE_IT_ADDBOT)
-     (online-push-item! opt ONLINE_IT_PVP)
-     (online-push-item! opt ONLINE_IT_VIS)
+     ;; bots de test : createur seulement ; PvP / visibilite : pas dans le monde en ligne (sauf createur)
+     (if (logtest? (-> *online-ext* flags) ONLINE_XF_CREATEUR)
+         (online-push-item! opt ONLINE_IT_ADDBOT)
+         )
+     (when (or (not (logtest? (-> *online-ext* flags) ONLINE_XF_WORLD)) (logtest? (-> *online-ext* flags) ONLINE_XF_CREATEUR))
+       (online-push-item! opt ONLINE_IT_PVP)
+       (online-push-item! opt ONLINE_IT_VIS)
+       )
+     (online-push-item! opt (if (online-local-j2?) ONLINE_IT_J2PAD ONLINE_IT_LOCALJ2))
      (online-push-item! opt ONLINE_IT_NAME)
      (online-push-item! opt ONLINE_IT_LEAVE)
      )
@@ -3518,6 +4544,7 @@
       (online-push-item! opt ONLINE_IT_PVP_NEW)
       (online-push-item! opt ONLINE_IT_JOIN_PUB)
       (online-push-item! opt ONLINE_IT_JOIN_CODE)
+      (online-push-item! opt (if (online-local-j2?) ONLINE_IT_J2PAD ONLINE_IT_LOCALJ2))
       (online-push-item! opt ONLINE_IT_NAME)
       )
     )
@@ -3648,6 +4675,11 @@
                     )
                   )
               )
+         ;; banc de test : selection de l'avant-derniere ligne (bas de la liste)
+         (when *online-menu-sel-low*
+           (set! *online-menu-sel-low* #f)
+           (set! (-> this selected) (max 0 (+ count -2)))
+           )
          (cond
            ((online-menu-move? up l-analog-up)
             (set! (-> this last-move) (online-now))
@@ -3679,6 +4711,10 @@
                 ((ONLINE_IT_SAVESYNC)
                  (sound-play "roll-over")
                  (online-request! ONLINE_REQ_SAVESYNC (if (nonzero? (-> shm save-sync)) 0 1))
+                 )
+                ((ONLINE_IT_J2PAD)
+                 (sound-play "roll-over")
+                 (online-j2-next-pad!)
                  )
                 ((ONLINE_IT_PVP)
                  (when (online-is-host?)
@@ -3821,6 +4857,21 @@
               ((ONLINE_IT_ADDBOT)
                (sound-play "window-expand")
                (online-request! ONLINE_REQ_ADDBOT 0)
+               )
+              ((ONLINE_IT_LOCALJ2)
+               (cond
+                 ((online-companion-alive?)
+                  (sound-play "window-expand")
+                  (online-request! ONLINE_REQ_LOCALJ2 2)
+                  )
+                 (else
+                   (sound-play "generic-beep")
+                   )
+                 )
+               )
+              ((ONLINE_IT_J2PAD)
+               (sound-play "roll-over")
+               (online-j2-next-pad!)
                )
               ((ONLINE_IT_GETSAVE)
                (sound-play "window-expand")
@@ -4111,7 +5162,17 @@
   (set! (-> fnt width) (+ -16.0 (- (-> box max x) (-> box min x))))
   (set! (-> fnt height) 30.0)
   (set! (-> fnt origin y) y)
-  (print-game-text (online-encode str) fnt #f 44 (bucket-id hud-draw-hud-alpha))
+  ;; texte trop large pour une ligne : on le retrecit (sinon il passe a la ligne et chevauche la
+  ;; ligne du dessous, surtout dans les langues aux mots longs)
+  (let* ((enc (online-encode str))
+         (w (-> (get-string-length enc fnt) length))
+         (room (-> fnt width))
+         )
+    (when (and (< room w) (< 0.0 w))
+      (set-scale! fnt (fmax (* 0.3 scale) (* scale 0.97 (/ room w))))
+      )
+    (print-game-text enc fnt #f 44 (bucket-id hud-draw-hud-alpha))
+    )
   (none)
   )
 
@@ -4138,7 +5199,7 @@
     (cond
       ((not (online-companion-alive?))
        (online-menu-line fnt box (online-fr "MODE EN LIGNE PAS ENCORE ACTIVE" "ONLINE MODE NOT ACTIVE YET") y1 0.42 (font-color red))
-       (online-menu-line fnt box (online-fr "OUVREZ UNE FOIS data/online/Jak3Online.exe" "OPEN ONCE data/online/Jak3Online.exe") y2 0.42 (font-color font-color-32))
+       (online-menu-line fnt box (online-fr "SUIVEZ LES ETAPES CI-DESSOUS" "FOLLOW THE STEPS BELOW") y2 0.42 (font-color font-color-32))
        )
       ((not (online-connected?))
        (online-menu-line fnt box (online-chars->string s (-> shm status-msg) 64) y1 0.42 (font-color yellow))
@@ -4173,6 +5234,18 @@
   (none)
   )
 
+(defun online-help-lines ((fnt font-context) (box hud-box) (y float))
+  "comment lancer le programme Jak 3 Online (etapes, traduites)"
+  (online-menu-line fnt box (online-fr "COMMENT ACTIVER LE MODE EN LIGNE :" "HOW TO TURN ON ONLINE MODE:") y 0.38 (font-color yellow))
+  (online-menu-line fnt box (online-fr "1. LAUNCHER OPENGOAL : JAK 3 / MOD Jak 3 Online" "1. OPENGOAL LAUNCHER: JAK 3 / Jak 3 Online MOD") (+ y 15.0) 0.3 (font-color font-color-32))
+  (online-menu-line fnt box (online-fr "2. PARAMETRES AVANCES / PARCOURIR LES FICHIERS LOCAUX" "2. ADVANCED SETTINGS / BROWSE LOCAL FILES") (+ y 29.0) 0.3 (font-color font-color-32))
+  (online-menu-line fnt box (online-fr "3. LE DOSSIER data S'OUVRE : DOUBLE-CLIC SUR" "3. THE data FOLDER OPENS: DOUBLE-CLICK") (+ y 43.0) 0.3 (font-color font-color-32))
+  (online-menu-line fnt box "1-LANCER-JAK-3-ONLINE" (+ y 57.0) 0.38 (font-color green))
+  (online-menu-line fnt box (online-fr "(OU online / Jak3Online.exe)" "(OR online / Jak3Online.exe)") (+ y 71.0) 0.3 (font-color font-color-32))
+  (online-menu-line fnt box (online-fr "4. ENSUITE : RACCOURCI Jak 3 Online SUR LE BUREAU" "4. NEXT TIME: Jak 3 Online SHORTCUT ON THE DESKTOP") (+ y 85.0) 0.3 (font-color font-color-32))
+  (none)
+  )
+
 (defmethod draw-option ((this menu-online-option) (arg0 progress) (arg1 font-context) (arg2 int) (arg3 symbol))
   (let* ((alpha (fmax 0.0 (* 2.0 (- 0.5 (-> arg0 menu-transition)))))
          (box (online-menu-box! (new 'stack 'hud-box)))
@@ -4190,6 +5263,9 @@
       ;; ---------------- page principale
       ((ONLINE_VIEW_MAIN)
        (online-status-lines arg1 box)
+       (if (not (online-companion-alive?))
+           (online-help-lines arg1 box (+ (-> box min y) (if (online-on-title? arg0) 84.0 46.0)))
+           )
        (let* ((count (online-main-items! this (online-on-title? arg0)))
               (first (max 0 (min (+ (-> this selected) -3) (+ count -7))))
               )
@@ -4198,7 +5274,12 @@
                  (y (+ (* 20.0 (the float (- k first))) (+ 44.0 (-> box min y))))
                  (sel (= k (-> this selected)))
                  )
-             (case (if (and (>= k first) (< k (+ first 7))) it 0)
+             ;; programme pas lance : seulement NOUVELLE / CHARGER, et l'aide pour le lancer
+             (case (if (and (>= k first) (< k (+ first 7))
+                            (or (online-companion-alive?) (= it ONLINE_IT_NEW) (= it ONLINE_IT_LOAD)))
+                       it
+                       0
+                       )
                ((ONLINE_IT_NEW)
                 (online-menu-row arg1 box (online-fr "LANCER : NOUVELLE PARTIE" "START: NEW GAME") y sel #f alpha)
                 )
@@ -4249,6 +5330,19 @@
                 )
                ((ONLINE_IT_ADDBOT)
                 (online-menu-row arg1 box (online-fr "AJOUTER UN JOUEUR TEST (BOT)" "ADD A TEST PLAYER (BOT)") y sel #f alpha)
+                )
+               ((ONLINE_IT_LOCALJ2)
+                (online-menu-row arg1 box
+                                 (if (online-local-j2-on?)
+                                     (online-fr "ARRETER LE JOUEUR 2 LOCAL" "STOP LOCAL PLAYER 2")
+                                     (online-fr "JOUEUR 2 LOCAL (2E FENETRE, 2E MANETTE)" "LOCAL PLAYER 2 (2ND WINDOW, 2ND CONTROLLER)")
+                                     )
+                                 y sel (not (online-companion-alive?)) alpha)
+                )
+               ((ONLINE_IT_J2PAD)
+                (format (clear s) (online-fr "MANETTE DU JOUEUR 2 : ~33L~C ~S ~33L~C" "PLAYER 2 CONTROLLER: ~33L~C ~S ~33L~C")
+                        163 (online-j2-pad-name (-> rt tmp-str2)) 161)
+                (online-menu-row arg1 box s y sel #f alpha)
                 )
                ((ONLINE_IT_GETSAVE)
                 (format (clear s)
@@ -4419,7 +5513,7 @@
                  (format (clear s)
                          "~S~S~S  ~S  PV ~D  ~DMS"
                          name
-                         (if (logtest? (-> e flags) ONLINE_PFLAG_HOST) (online-fr " (HOTE)" " (HOST)") "")
+                         (if (and (logtest? (-> e flags) ONLINE_PFLAG_HOST) (not (logtest? (-> *online-ext* flags) ONLINE_XF_WORLD))) (online-fr " (HOTE)" " (HOST)") "")
                          (if (logtest? (-> e flags) ONLINE_PFLAG_ME) (online-fr " (VOUS)" " (YOU)") "")
                          (if (zero? (length lev)) "-" lev)
                          (the int (-> e health))
@@ -4456,6 +5550,108 @@
         )
       )
     (online-print s 56.0 392.0 400.0 0.45 (font-color font-color-32) (font-flags shadow kerning middle large))
+    )
+  (none)
+  )
+
+;; banc de test : poussee maintenue image par image (le jeu l'annule au sol apres 35 ms)
+(define *ow-test-push* (new 'static 'vector))
+(define *ow-test-push-until* (the-as time-frame 0))
+
+(defun online-coll-test-tick! ()
+  (when (and *target* (< (online-now) *ow-test-push-until*))
+    (send-event *target* 'push-transv *ow-test-push* (seconds 0.1))
+    )
+  (none)
+  )
+
+(defun online-coll-test! ((arg int))
+  "banc de test : 650 = sur la tete du premier autre joueur ; 651 = je lui fonce dedans ;
+   652 = pad 39 : 1 son corps est solide, 2 je suis debout sur lui ; 653 = j'avance 3 s"
+  (let ((p (the-as online-puppet #f)))
+    (dotimes (i ONLINE_MAX_PUPPETS)
+      (let ((q (online-puppet-proc i)))
+        (if (and (not p) q (-> q placed))
+            (set! p q)
+            )
+        )
+      )
+    (when *target*
+      (case arg
+        ((650)
+         (when p
+           (let ((dst (vector-copy! (new 'stack-no-clear 'vector) (-> p root trans))))
+             (+! (-> dst y) (meters 2.8))
+             (move-to-point! (-> *target* control) dst)
+             (vector-reset! (-> *target* control transv))
+             )
+           )
+         )
+        ((651)
+         (when p
+           (let ((dst (vector-copy! (new 'stack-no-clear 'vector) (-> p root trans)))
+                 (fwd (vector-z-quaternion! (new 'stack-no-clear 'vector) (-> p root quat)))
+                 (v (new 'stack-no-clear 'vector))
+                 )
+             (set! (-> fwd y) 0.0)
+             (vector-normalize! fwd (meters 2.5))
+             (vector+! dst dst fwd)
+             (+! (-> dst y) (meters 0.2))
+             (move-to-point! (-> *target* control) dst)
+             (vector-! v (-> p root trans) dst)
+             (set! (-> v y) 0.0)
+             (vector-normalize! v (meters 5.0))
+             (vector-copy! *ow-test-push* v)
+             (set! *ow-test-push-until* (+ (online-now) (seconds 1.2)))
+             )
+           )
+         )
+        ((652)
+         (let ((r 0))
+           (when p
+             (if (-> p coll-on)
+                 (set! r (logior r 1))
+                 )
+             (let ((dx (- (-> *target* control trans x) (-> p root trans x)))
+                   (dz (- (-> *target* control trans z) (-> p root trans z)))
+                   (dy (- (-> *target* control trans y) (-> p root trans y)))
+                   )
+               (if (and (< (+ (* dx dx) (* dz dz)) (* (meters 0.9) (meters 0.9))) (< (meters 1.5) dy) (< dy (meters 2.6))
+                        (logtest? (-> *target* control status) (collide-status on-surface)))
+                   (set! r (logior r 2))
+                   )
+               )
+             )
+           (set! (-> *online-shm* local pad 39) (the-as uint r))
+           (let ((c (the-as ow-corps (handle->process (-> p body)))))
+             (when c
+               (let ((rp (the-as collide-shape-prim-mesh (-> c root root-prim))))
+                 (format 0 "[jak3-online] corps diag : maillage ~A as #x~X with #x~X parent ~A~%"
+                         (-> rp mesh) (-> rp prim-core collide-as) (-> rp prim-core collide-with) (ppointer->process (-> c parent)))
+                 (format 0 "[jak3-online] corps diag : sphere ~M ~M ~M r ~M ; avatar y ~M~%"
+                         (-> rp prim-core world-sphere x) (-> rp prim-core world-sphere y) (-> rp prim-core world-sphere z) (-> rp prim-core world-sphere w)
+                         (-> p root trans y))
+                 )
+               )
+             )
+           (if p
+               (format 0 "[jak3-online] corps : solide ~A corps ~A ; moi ~M au-dessus, sol ~A~%"
+                       (-> p coll-on) (if (handle->process (-> p body)) #t #f)
+                       (- (-> *target* control trans y) (-> p root trans y))
+                       (logtest? (-> *target* control status) (collide-status on-surface)))
+               )
+           )
+         )
+        ((653)
+         (let ((v (vector-z-quaternion! (new 'stack-no-clear 'vector) (-> *target* control quat))))
+           (set! (-> v y) 0.0)
+           (vector-normalize! v (meters 3.0))
+           (vector-copy! *ow-test-push* v)
+           (set! *ow-test-push-until* (+ (online-now) (seconds 3)))
+           )
+         )
+        )
+      )
     )
   (none)
   )

@@ -10,6 +10,6 @@
   "automatic_wall_angle": 45.0,
   "double_sided_collide": false,
   "base_id": 400,
-  "custom_models": ["zone-boss", "ow-keira", "ow-jak2", "ow-jak1", "ow-jak4", "ow-tess"],
+  "custom_models": ["zone-boss", "ow-keira", "ow-jak2", "ow-jak1", "ow-jak4", "ow-tess", "ow-ashelin", "ow-torn", "ow-sig", "ow-samos", "ow-requin", "ow-acc0", "ow-acc1", "ow-acc2", "ow-acc3", "ow-acc4", "ow-acc5", "ow-acc6", "ow-acc7", "ow-acc8", "ow-acc9", "ow-acc10", "ow-acc11", "ow-acc12", "ow-acc13"],
   "actors": []
 }

@@ -435,7 +435,13 @@
   (set! (-> self hit-time) (online-now))
   (let ((pos (vector-copy! (new 'stack-no-clear 'vector) (-> self root trans))))
     (+! (-> pos y) (* 0.45 (ow-boss-height (-> self kind))))
-    (sound-play "oof" :position pos)
+    ;; bruit d'impact sur le boss (et son cri si son son est charge), pas le "aie" de Jak
+    (sound-play "punch-hit" :position pos)
+    (case (-> self kind)
+      ((ONLINE_BOSS_BETE) (sound-play "desbeast-gethit" :position pos))
+      ((ONLINE_BOSS_TITAN) (sound-play "dm-get-hit" :position pos))
+      ((ONLINE_BOSS_ROBOT) (sound-play "hit-boss-head" :position pos))
+      )
     (vector-copy! (-> *launch-matrix* trans) pos)
     (part-tracker-spawn part-tracker :to self :group group-target-hit)
     )
@@ -1401,10 +1407,13 @@
 ;; SUPER-POUVOIRS (effets dans le jeu)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define-extern ow-parkour-now? (function symbol))
+
 (defun oe-powers-update! ()
   (let* ((es *online-events*)
          (ext *online-ext*)
-         (on (and (online-in-session?) (-> *online-world* active)))
+         ;; sur un parcours : pas de super-pouvoirs (pas de raccourci)
+         (on (and (online-in-session?) (-> *online-world* active) (not (ow-parkour-now?))))
          (turbo (and on (< 0.0 (-> ext power-left ONLINE_POW_TURBO))))
          (jump (and on (< 0.0 (-> ext power-left ONLINE_POW_JUMP))))
          (regen (and on (< 0.0 (-> ext power-left ONLINE_POW_REGEN))))
@@ -1428,6 +1437,12 @@
       (set! (-> *TARGET-bank* jump-height-max) (* (if jump 2.0 1.0) (-> es jump-max)))
       (set! (-> *TARGET-bank* double-jump-height-min) (* (if jump 2.0 1.0) (-> es djump-min)))
       (set! (-> *TARGET-bank* double-jump-height-max) (* (if jump 2.2 1.0) (-> es djump-max)))
+      )
+    ;; sur un parcours : on descend de la planche et on quitte Light / Dark Jak (pas de raccourci)
+    (when (and *target* (online-in-session?) (ow-parkour-now?) (not (focus-test? *target* dead)))
+      (if (focus-test? *target* board) (send-event *target* 'end-mode 'board))
+      (if (focus-test? *target* light) (send-event *target* 'end-mode 'lightjak))
+      (if (focus-test? *target* dark) (send-event *target* 'end-mode 'darkjak))
       )
     ;; REGENERATION : 1 point de vie toutes les 1.5 s
     (when (and regen *target* (not (focus-test? *target* dead))
@@ -1522,7 +1537,7 @@
   (if (not *oe-surf-ready*)
       (oe-surf-init!)
       )
-  (let* ((on (and (online-in-session?) (-> *online-world* active)))
+  (let* ((on (and (online-in-session?) (-> *online-world* active) (not (ow-parkour-now?))))
          (blue (and on (oe-blue?)))
          (turbo (-> *online-events* turbo-on))
          )
@@ -1535,9 +1550,10 @@
             (s0 (-> *oe-surf-save* (+ (* i 4) 2)))
             (s9 (-> *oe-surf-save* (+ (* i 4) 3)))
             )
-        (when (and turbo (= i 1))
-          (set! tm (* 1.6 tm))
-          (set! ts (* 1.6 ts))
+        ;; TURBO : vraiment rapide, sur tous les mouvements (course, sauts, roulade, attaques)
+        (when turbo
+          (set! tm (fmax (* 2.2 tm) (* 0.9 (-> *oe-surf-blue* i))))
+          (set! ts (fmax (* 2.2 ts) (* 0.9 (-> *oe-surf-blue* i))))
           )
         (when blue
           (set! tm (fmax tm (-> *oe-surf-blue* i)))
@@ -1588,11 +1604,15 @@
             )
           )
         )
-      ;; aimant (une image sur deux)
-      (when (and (not (focus-test? *target* dead)) (logtest? (-> *display* real-clock frame-counter) 1))
-        (vector-copy! *oe-magnet-pos* (-> *target* control trans))
-        (iterate-process-tree *active-pool* (lambda ((p object)) (oe-magnet-try (the-as process p))) *null-kernel-context*)
-        )
+      )
+    ;; aimant (une image sur deux) : eco bleu OU super-pouvoir AIMANT A ORBES
+    (when (and (or blue (and on (< 0.0 (-> *online-ext* power-left ONLINE_POW_MAGNET))))
+               *target*
+               (not (focus-test? *target* dead))
+               (logtest? (-> *display* real-clock frame-counter) 1)
+               )
+      (vector-copy! *oe-magnet-pos* (-> *target* control trans))
+      (iterate-process-tree *active-pool* (lambda ((p object)) (oe-magnet-try (the-as process p))) *null-kernel-context*)
       )
     )
   (none)
@@ -1791,9 +1811,20 @@
             (ow-text-mid s (+ y 14.0) 0.38 (if (-> es in-zone) (font-color green) (font-color font-color-44)))
             (set! used 30.0)
             )
-           ((ONLINE_EVK_PARKOUR)
+           ((ONLINE_EVK_PARKOUR ONLINE_EVK_KART ONLINE_EVK_HIDE)
             (ow-map-draw-banner! y)
             (set! used 30.0)
+            )
+           ((ONLINE_EVK_MISSION)
+            (format (clear s) (online-fr "MISSION : ~S  -  ~S" "MISSION: ~S  -  ~S")
+                    (online-chars->string (-> *online-world* str3) (-> ext ev-name) 32) (oe-time-text (-> es str2) (-> ext ev-timer)))
+            (ow-text-mid s y 0.42 (font-color flat-yellow))
+            (ow-text-mid (if (task-complete? *game-info* (the-as game-task (-> ext ev-boss)))
+                             (online-fr "tu l'as deja reussie dans cette partie" "you already completed it in this game")
+                             (online-fr "le premier qui la reussit gagne 2000 orbes !" "the first to complete it wins 2000 orbs!")
+                             )
+                         (+ y 14.0) 0.3 (font-color white))
+            (set! used 28.0)
             )
            ((ONLINE_EVK_ZONE)
             (format (clear s) (online-fr "ZONE A CAPTURER  -  ~S  -  ~D m  -  ~S" "CAPTURE THE ZONE  -  ~S  -  ~D m  -  ~S")
@@ -1905,6 +1936,202 @@
            )
        )
      )
+    )
+  (none)
+  )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; LA METEO DU MONDE (admin) : pluie, orage (eclairs + tonnerre), neige. Meme recette que le mod
+;; "Jak 4" de l'utilisateur : le ciel par le mecanisme natif (overide-weather-flag, nuages et brume),
+;; la pluie et les flocons du jeu (update-rain / update-snow) devant la camera. Jamais en cinematique.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftype ow-meteo-state (structure)
+  ((kind      int32)       ;; meteo affichee
+   (f         float)       ;; intensite 0..1 (monte / descend doucement)
+   (saved     symbol)      ;; on a pris la main sur le ciel du jeu
+   (flag0     symbol)
+   (c0        float)
+   (g0        float)
+   (flash     float)
+   (next-bolt time-frame)
+   (thunder   time-frame)
+   )
+  )
+
+(define *ow-meteo* (new 'static 'ow-meteo-state))
+
+(defun ow-meteo-tick! ()
+  (let* ((m *ow-meteo*)
+         (want (if (and (online-in-session?) (-> *online-world* active)) (the-as int (-> *online-ext* weather)) 0))
+         (dt (-> *display* real-clock seconds-per-frame))
+         (now (online-now))
+         )
+    (if (or (< want 0) (< 3 want))
+        (set! want 0)
+        )
+    ;; changement de meteo : l'ancienne s'efface d'abord
+    (cond
+      ((= want (-> m kind))
+       (if (< 0 want)
+           (set! (-> m f) (fmin 1.0 (+ (-> m f) (* dt 0.12))))
+           )
+       )
+      (else
+        (set! (-> m f) (fmax 0.0 (- (-> m f) (* dt 0.25))))
+        (if (<= (-> m f) 0.0)
+            (set! (-> m kind) want)
+            )
+        )
+      )
+    (let ((f (-> m f))
+          (k (-> m kind))
+          )
+      ;; le ciel
+      (cond
+        ((and *mood-control* (< 0 k) (< 0.0 f))
+         (when (not (-> m saved))
+           (set! (-> m saved) #t)
+           (set! (-> m flag0) (-> *mood-control* overide-weather-flag))
+           (set! (-> m c0) (-> *mood-control* overide cloud))
+           (set! (-> m g0) (-> *mood-control* overide fog))
+           )
+         (set! (-> *mood-control* overide-weather-flag) #t)
+         (set! (-> *mood-control* overide cloud) (* f (case k ((2) 1.0) (else 0.85))))
+         (set! (-> *mood-control* overide fog) (* f (case k ((1) 0.3) ((2) 0.75) (else 0.45))))
+         )
+        ((-> m saved)
+         (set! (-> m saved) #f)
+         (when *mood-control*
+           (set! (-> *mood-control* overide-weather-flag) (-> m flag0))
+           (set! (-> *mood-control* overide cloud) (-> m c0))
+           (set! (-> *mood-control* overide fog) (-> m g0))
+           (set! (-> *mood-control* lightning-flash) 0.0)
+           )
+         )
+        )
+      ;; pluie et neige devant la camera (comme time-of-day-update)
+      (when (and (< 0.02 f) (< 0 k) (not (movie?)) *math-camera*)
+        (let ((p (new 'stack-no-clear 'vector))
+              (v (new 'stack-no-clear 'vector))
+              (fv (-> *math-camera* inv-camera-rot fvec))
+              )
+          (vector-copy! p (-> *math-camera* trans))
+          (vector-! v p (-> *math-camera* prev-trans))
+          (vector+float*! p p fv (* 25.0 (vector-dot v fv)))
+          (set! (-> p y) (-> *math-camera* trans y))
+          (case k
+            ((1) (update-rain (* 0.45 f) p v))
+            ((2) (update-rain (* 0.75 f) p v) (update-rain (* 0.75 f) p v))
+            ((3)
+             (update-snow f p v)
+             (let ((q (new 'stack-no-clear 'vector)))
+               (dotimes (n 4)
+                 (vector-copy! q p)
+                 (case n
+                   ((0) (+! (-> q x) (meters 22)))
+                   ((1) (+! (-> q x) (meters -22)))
+                   ((2) (+! (-> q z) (meters 22)))
+                   (else (+! (-> q z) (meters -22)))
+                   )
+                 (update-snow f q v)
+                 )
+               )
+             )
+            )
+          )
+        )
+      ;; l'orage : eclairs (le ciel du jeu s'illumine) puis tonnerre
+      (set! (-> m flash) (fmax 0.0 (- (-> m flash) (* 4.0 dt))))
+      (when (and (= k 2) (< 0.5 f) (not (movie?)))
+        (when (< (-> m next-bolt) now)
+          (set! (-> m next-bolt) (+ now (the int (* 300.0 (rand-vu-float-range 5.0 12.0)))))
+          (set! (-> m flash) 1.0)
+          (set! (-> m thunder) (+ now (the int (* 300.0 (rand-vu-float-range 0.4 1.6)))))
+          )
+        (when (and (nonzero? (-> m thunder)) (< (-> m thunder) now))
+          (set! (-> m thunder) 0)
+          (case (rand-vu-int-count 3)
+            ((0) (sound-play "thunder-a" :position #f))
+            ((1) (sound-play "thunder-b" :position #f))
+            (else (sound-play "thunder-c" :position #f))
+            )
+          )
+        )
+      (if *mood-control*
+          (if (< 0.0 (-> m flash))
+              (set! (-> *mood-control* lightning-flash) (-> m flash))
+              (if (= k 2)
+                  (set! (-> *mood-control* lightning-flash) 0.0)
+                  )
+              )
+          )
+      )
+    )
+  (none)
+  )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; LES DIALOGUES (admin) : les vraies repliques du jeu (voix internes), jouees chez chacun dans la
+;; langue de son jeu. Meme technique que le mod "Jak 4" (add-process sur *gui-control*, canal jak).
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defconstant OW_DIALOG_COUNT 35)
+
+(define *ow-dialog-names* (new 'static 'boxed-array :type string
+  "DAX553" "DAX201" "DAX398" "DAX609" "DAX414" "JAK127" "JAK102" "JAK103" "JAK117" "TORN203"
+  "TORN216" "TORN125" "SIG304" "SIG153" "SIG176" "DAM101" "DAM102" "DAM106" "ASH134" "ASH119"
+  "PECK130" "PECK148" "KLEV111" "KLEV109" "KLEV134" "VIN128" "VIN134" "TESS143" "TESS154" "JINX102"
+  "ERO093" "ERO068" "CIT143" "GRDS108A" "ORA102"))
+
+(define *ow-dialog-who* (new 'static 'boxed-array :type string
+  "Daxter" "Daxter" "Daxter" "Daxter" "Daxter" "Jak" "Jak" "Jak" "Jak" "Torn"
+  "Torn" "Torn" "Sig" "Sig" "Sig" "Damas" "Damas" "Damas" "Ashelin" "Ashelin"
+  "Pecker" "Pecker" "Kleiver" "Kleiver" "Kleiver" "Vin" "Vin" "Tess" "Tess" "Jinx"
+  "Errol" "Errol" "Citizen" "Guard" "Oracle"))
+
+(define *ow-dialog-fr* (new 'static 'boxed-array :type string
+  "Du gateauuuu !" "Viens la, espece de lezard fou !" "Plus vite, bebe !" "Attends ici, Jak. Je vais sauver la situation."
+  "Cinq, et on est toujours vivants !" "Je sais conduire ca ! Je sais tout conduire." "Faut bouger !" "Accroche-toi, Dax !"
+  "Waouh, je vois notre planete !" "Vas-y, Jak, vas-y !" "Vas-y, bebe, vas-y !" "T'y es presque !"
+  "Sig est dans la place, bebe !" "Ouais ! Youhou !" "Accrochez-vous !" "Les voila !" "Reste en alerte, Jak !"
+  "Sors ton arme ! Feu, feu !" "Tu peux le faire !" "Le dernier, joli tir !" "Et la foule est en delire !"
+  "Tres bien. Tres bien vraiment." "Attrape-moi si tu peux." "Bye bye, le bleu." "Pas sur ma piste !"
+  "Tu as battu le jeu !" "Salut, j'voudrais pas etre a ta place." "Super score, Jak !" "On recommence ?"
+  "Salut beau gosse. Pret a tout casser ?" "Dommage, j'ai gagne !" "Cette ville est a moi."
+  "Arrete de respirer !" "Des Metal Heads ! Tirez, tirez !" "Voulez-vous echanger ?"))
+
+(define *ow-dialog-en* (new 'static 'boxed-array :type string
+  "Piece of caaaaake!" "Come here ya crazy lizard!" "Faster, baby!" "Wait here, Jak. I'll save the day."
+  "Five and we're still alive!" "I can drive this! I can drive anything." "We gotta move!" "Hold on, Dax!"
+  "Wow, I can see our planet!" "Go, Jak, go!" "Go, baby, go!" "You're almost there!"
+  "Sig is in the house, baby!" "Yes! Woohoo!" "Hold on to something!" "Here they come!" "Look alive, Jak!"
+  "Open up with the gun! Fire, fire!" "You can do it!" "Last one, nice shooting!" "And the crowd goes wild!"
+  "Very nice. Very nice indeed." "Catch me if you can." "Bye bye, newbie." "Not on my track!"
+  "You beat the game!" "See ya, wouldn't wanna be ya." "Great score, Jak!" "Wanna go again?"
+  "Hey there, pretty boy. Ready to rock and rumble?" "Too bad, I win!" "I own this city."
+  "Stop breathing!" "Metal Heads! Shoot 'em, shoot 'em!" "Would you like to trade?"))
+
+(define *ow-dialog-last* (the-as sound-id 0)) ;; derniere replique lancee (banc de test : son etat)
+
+(defun ow-dialog-who-name ((k int))
+  (case k
+    ((32) (online-fr "Citoyen" "Citizen"))
+    ((33) (online-fr "Garde" "Guard"))
+    (else (-> *ow-dialog-who* k))
+    )
+  )
+
+(defun ow-dialog-text ((k int))
+  (online-fr (-> *ow-dialog-fr* k) (-> *ow-dialog-en* k))
+  )
+
+(defun ow-dialog-play! ((k int))
+  "joue la replique k (voix du jeu, dans la langue du jeu) et l'affiche"
+  (when (and (>= k 0) (< k OW_DIALOG_COUNT) *target* *gui-control* (not (movie?)))
+    (set! *ow-dialog-last* (add-process *gui-control* *target* (gui-channel jak) (gui-action play) (-> *ow-dialog-names* k) -99.0 0))
+    (format (clear (-> *online-world* str3)) "~S : ~S" (ow-dialog-who-name k) (ow-dialog-text k))
+    (ow-hint! (-> *online-world* str3))
     )
   (none)
   )

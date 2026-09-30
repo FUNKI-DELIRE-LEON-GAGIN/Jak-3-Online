@@ -29,11 +29,25 @@ namespace Jak3Online
     partial class Client
     {
         public const int EVK_NONE = 0, EVK_BOSS = 1, EVK_ORBS = 2, EVK_TREASURE = 3, EVK_DOUBLEXP = 4, EVK_ZONE = 5,
-            EVK_HUNT = 6, EVK_PARKOUR = 7, EVK_METEOR = 8, EVK_MAX = 8;
+            EVK_HUNT = 6, EVK_PARKOUR = 7, EVK_METEOR = 8, EVK_MISSION = 9, EVK_KART = 10, EVK_HIDE = 11, EVK_MAX = 11;
+        // cartes du jeu (Maps) : 0..7 parcours, 8..15 maisons, 16 circuit ; cache-cache au manoir (12)
+        public const int ParkourCount = 8, MapCircuit = 16, MapHide = 12, HideSpots = 10;
+        // ANTI-TRICHE des courses : points de passage du circuit (metres) et cachettes du cache-cache
+        static readonly float[] KartChecks = { 1660f, 100.1f, 3000f, 1500f, 100.1f, 3060f, 1340f, 100.1f, 3000f };
+        static readonly float[] HideSpotsXyz = {
+            -42.5f, 0.2f, -27.5f, 44.0f, 0.2f, 14.5f, -15.0f, 5.45f, 22.0f, 6.0f, 10.45f, 19.5f, 0.0f, 0.1f, -17.0f,
+            -55.0f, 0.1f, 30.0f, 6.0f, 0.45f, 2.4f, 55.0f, 0.1f, -40.0f, -14.0f, 0.45f, 17.5f, 16.0f, 0.45f, 21.5f };
+        uint kartEvId; int kartCp; long kartCpMs;
+        static bool MapEventKind(int k) { return k == EVK_PARKOUR || k == EVK_KART || k == EVK_HIDE; }
         const int EV_START = 1, EV_END = 2, EV_DMG = 3, EV_FOUND = 4, EV_SCORE = 5, EV_SYNC = 6,
             EV_POS = 7, EV_HUNTED = 8, EV_FINISH = 9;
         public const int EV_BOSS_POS = 22;
-        public const int EV_PERSO = 23;      // le jeu choisit un personnage (mode = numero)
+        public const int EV_PERSO = 23;
+        public const int EV_WEAR = 30;
+        public const int EV_SHOT = 25;       // tir (mode = arme, d = direction)
+        public const int EV_HOUSE = 26;      // je suis dans la maison de player (0 = dehors)
+        public const int EV_INVITE = 27;     // invitation dans une maison (mode = maison)
+        public const int EV_COOP = 24;       // coop session privee (mode = sorte, player = aid / etape)      // le jeu choisit un personnage (mode = numero)
 
         class WorldEvent
         {
@@ -55,6 +69,7 @@ namespace Jak3Online
         DateTime lastDmgSend = DateTime.MinValue;
         float lastDmgSent = -1f;
         DateTime nextEvent = DateTime.MinValue;
+        int lastRandomKind;
         readonly Random evRng = new Random(Guid.NewGuid().GetHashCode());
 
         // boss synchronise
@@ -81,6 +96,18 @@ namespace Jak3Online
             MapDef("Volcan", "Volcano", "ow-volcan", 4, 3000, 2000, -3000.00f, 212.60f, -3106.00f, -3000.00f, 301.40f, -2960.00f),
             MapDef("Glacier", "Glacier", "ow-glace", 4, 3000, 2000, -3000.00f, 210.60f, 2964.00f, -3000.00f, 275.90f, 3276.00f),
             MapDef("Paris", "Paris", "ow-paris", 5, 4000, 2500, 3004.00f, 100.70f, 2856.00f, 3000.00f, 241.00f, 3130.00f),
+            MapDef("Foret suspendue", "Hanging forest", "ow-foret", 3, 2500, 1600, 0.00f, 150.60f, 2995.00f, 0.00f, 186.00f, 3090.00f),
+            MapDef("Usine infernale", "Inferno factory", "ow-usine", 5, 4500, 2800, 3000.00f, 150.60f, -3.00f, 2994.80f, 188.50f, 160.00f),
+            MapDef("Canyon du desert", "Desert canyon", "ow-canyon", 2, 1500, 1000, -3000.00f, 100.60f, -4.00f, -2998.00f, 122.00f, 158.00f),
+            MapDef("Cabane dans les bois", "Forest cabin", "ow-cabane", 1, 0, 0, 0.00f, 100.60f, -3012.00f, 0.00f, 0.00f, 0.00f),
+            MapDef("Villa au bord de l'eau", "Seaside villa", "ow-villa", 1, 0, 0, 1496.00f, 100.70f, -1520.00f, 0.00f, 0.00f, 0.00f),
+            MapDef("Chateau", "Castle", "ow-chateau", 1, 0, 0, -1500.00f, 100.80f, -1534.00f, 0.00f, 0.00f, 0.00f),
+            MapDef("Maison en cubes", "Block house", "ow-cubes", 1, 0, 0, 1500.00f, 100.30f, 1482.00f, 0.00f, 0.00f, 0.00f),
+            MapDef("Manoir", "Manor", "ow-manoir", 1, 0, 0, 1500.00f, 100.30f, -3054.00f, 0.00f, 0.00f, 0.00f),
+            MapDef("Gratte-ciel", "Skyscraper", "ow-tour", 1, 0, 0, -1500.00f, 150.80f, -3030.00f, 0.00f, 0.00f, 0.00f),
+            MapDef("Temple precurseur", "Precursor temple", "ow-temple", 1, 0, 0, 3000.00f, 150.30f, 1454.00f, 0.00f, 0.00f, 0.00f),
+            MapDef("Palais de l'ile", "Island palace", "ow-palais", 1, 0, 0, 3000.00f, 60.60f, -1542.00f, 0.00f, 0.00f, 0.00f),
+            MapDef("Circuit", "Race circuit", "ow-circuit", 2, 3000, 2000, 1484.00f, 100.60f, 2940.00f, 1500.00f, 100.10f, 2940.00f),
             // END MAPS (build_maps.py)
         };
         static ParkourMap MapDef(string fr, string en, string lvl, int stars, int reward, int xp, float sx, float sy, float sz, float fx, float fy, float fz)
@@ -92,12 +119,49 @@ namespace Jak3Online
         }
         string MapName(int i) { return i >= 0 && i < Maps.Length ? T(Maps[i].NameFr, Maps[i].NameEn) : "?"; }
 
+        // ---------------- missions du jeu (evenement MISSION : memes numeros que *ow-mission-ids*)
+        static readonly Dictionary<int, string[]> Missions = new Dictionary<int, string[]> {
+            { 114, new[] { "Anneaux du desert 1", "Desert rings 1" } },
+            { 115, new[] { "Anneaux du desert 2", "Desert rings 2" } },
+            { 116, new[] { "Anneaux de Spargus 1", "Spargus rings 1" } },
+            { 117, new[] { "Anneaux de Spargus 2", "Spargus rings 2" } },
+            { 118, new[] { "Anneaux de Haven 1", "Haven rings 1" } },
+            { 119, new[] { "Anneaux de Haven 2", "Haven rings 2" } },
+            { 121, new[] { "Chasse aux esprits (desert)", "Spirit chase (desert)" } },
+            { 122, new[] { "Chasse aux esprits (Spargus)", "Spirit chase (Spargus)" } },
+            { 123, new[] { "Chasse aux esprits (Haven)", "Spirit chase (Haven)" } },
+            { 124, new[] { "Course contre la montre (desert)", "Timer chase (desert)" } },
+            { 125, new[] { "Course contre la montre (Spargus)", "Timer chase (Spargus)" } },
+            { 131, new[] { "Contre-la-montre en vehicule", "Vehicle time trial" } },
+            { 132, new[] { "Rallye du desert", "Desert rally" } },
+            { 133, new[] { "Attaque du port (Haven)", "Port attack (Haven)" } },
+            { 136, new[] { "Defi JetBoard (Haven)", "JetBoard challenge (Haven)" } },
+            { 137, new[] { "Detruire les intercepteurs", "Destroy the interceptors" } },
+            { 120, new[] { "Oeufs d'araignees (desert)", "Spider eggs (desert)" } },
+            { 126, new[] { "Temps en l'air (vehicule)", "Air time (vehicle)" } },
+            { 128, new[] { "Saut le plus long (vehicule)", "Longest jump (vehicle)" } },
+            { 130, new[] { "Tonneaux (vehicule)", "Roll count (vehicle)" } }
+        };
+        string MissionName(int task) { string[] n; return Missions.TryGetValue(task, out n) ? T(n[0], n[1]) : "?"; }
+
+        // le jeu m'annonce une mission reussie : si c'est celle de l'evenement, je l'annonce (le premier gagne)
+        void OnMissionTaskDone(int task)
+        {
+            WorldEvent e = ev;
+            if (e == null || e.Kind != EVK_MISSION || e.State != 1 || e.Boss != task || e.FoundSent) return;
+            e.FoundSent = true;
+            long now = Profil.NowMs();
+            byte[] payload = Build(w => { w.Write((byte)EV_FINISH); w.Write(e.Id); w.Write(now); });
+            SignedEventSend(0, payload);
+        }
+
         // nom de l'evenement dans MA langue (le nom recu est celui de la langue de l'autorite)
         string EvName(WorldEvent e)
         {
             if (e.Kind == EVK_BOSS && e.Boss >= 0 && e.Boss < BossNamesFr.Length) return T(BossNamesFr[e.Boss], BossNamesEn[e.Boss]);
-            if (e.Kind == EVK_PARKOUR) return MapName(e.Boss);
+            if (MapEventKind(e.Kind)) return MapName(e.Boss);
             if (e.Kind == EVK_HUNT) return NameOf(e.Target);
+            if (e.Kind == EVK_MISSION) return MissionName(e.Boss);
             return e.Name;
         }
 
@@ -170,11 +234,21 @@ namespace Jak3Online
         {
             if (SessionId == 0 || kind < 1 || kind > EVK_MAX) return;
             if (kind == EVK_HUNT && target == 0) target = MyId;
+            if (kind == EVK_MISSION && !Missions.ContainsKey(variant)) return;
             if (kind == EVK_PARKOUR)
             {
-                if (variant < 0 || variant >= Maps.Length) variant = evRng.Next(Maps.Length);
+                if (variant < 0 || variant >= ParkourCount) variant = evRng.Next(ParkourCount);
                 ParkourMap pm = Maps[variant];
                 x = pm.SX; y = pm.SY; z = pm.SZ; level = pm.Level;
+            }
+            if (kind == EVK_KART || kind == EVK_HIDE)
+            {
+                variant = kind == EVK_KART ? MapCircuit : MapHide;
+                if (variant >= Maps.Length) return;
+                ParkourMap pm = Maps[variant];
+                x = pm.SX; y = pm.SY; z = pm.SZ; level = pm.Level;
+                // cache-cache : la cachette du personnage rouge (la meme pour tous)
+                if (kind == EVK_HIDE) target = (uint)evRng.Next(HideSpots);
             }
             long now = Profil.NowMs();
             byte[] b4 = new byte[4];
@@ -186,11 +260,13 @@ namespace Jak3Online
             double dist = kind == EVK_BOSS ? 22 : kind == EVK_TREASURE ? 35 + evRng.NextDouble() * 25 : kind == EVK_ZONE ? 18 : kind == EVK_ORBS ? 8 : kind == EVK_METEOR ? 12 : 0;
             float ex = x + (float)(Math.Sin(ang) * dist * 4096.0), ez = z + (float)(Math.Cos(ang) * dist * 4096.0);
             int dur = kind == EVK_BOSS ? 300 : kind == EVK_ORBS ? 90 : kind == EVK_TREASURE ? 300 : kind == EVK_DOUBLEXP ? 300
-                : kind == EVK_HUNT ? 300 : kind == EVK_PARKOUR ? 480 : kind == EVK_METEOR ? 100 : 120;
+                : kind == EVK_HUNT ? 300 : kind == EVK_PARKOUR ? 480 : kind == EVK_METEOR ? 100 : kind == EVK_MISSION ? 600
+                : kind == EVK_KART ? 300 : kind == EVK_HIDE ? 300 : 120;
             int boss = kind == EVK_BOSS ? (variant >= 0 && variant < BossNamesFr.Length ? variant : evRng.Next(BossNamesFr.Length))
-                : kind == EVK_PARKOUR ? variant : 0;
+                : MapEventKind(kind) || kind == EVK_MISSION ? variant : 0;
             float hp = kind == EVK_BOSS ? (300f + 150f * players) * BossHpMul[boss] : 0f;
-            string name = kind == EVK_BOSS ? (French ? BossNamesFr[boss] : BossNamesEn[boss]) : kind == EVK_PARKOUR ? Maps[boss].NameFr : "";
+            string name = kind == EVK_BOSS ? (French ? BossNamesFr[boss] : BossNamesEn[boss]) : MapEventKind(kind) ? Maps[boss].NameFr
+                : kind == EVK_MISSION ? Missions[boss][0] : "";
             uint tg = target;
             byte[] payload = Build(w =>
             {
@@ -213,10 +289,16 @@ namespace Jak3Online
             if (t.Id == MyId) { if (!MyPos(out x, out y, out z)) return; lvl = MyLevelName(); }
             // pas d'evenement dans les petits interieurs (bar, tente...) ni sur les cartes des parcours
             if (lvl.StartsWith("hiphog") || lvl.StartsWith("onintent") || lvl.StartsWith("freehq") || lvl.StartsWith("title") || lvl.StartsWith("ow-") || lvl.Length == 0) return;
-            int[] bag = { EVK_BOSS, EVK_BOSS, EVK_BOSS, EVK_ORBS, EVK_TREASURE, EVK_DOUBLEXP, EVK_ZONE, EVK_METEOR, EVK_METEOR, EVK_PARKOUR };
+            // a peu de joueurs, pas d'evenement qui rapporte gros (boss, tresor, parcours) ; les
+            // parcours (cartes du mod, chacun choisit d'y aller ou non) a partir de 3 joueurs
+            int n = SessionCount;
+            int[] bag = n < 3 ? new[] { EVK_ORBS, EVK_DOUBLEXP, EVK_ZONE, EVK_METEOR }
+                : n < 6 ? new[] { EVK_BOSS, EVK_BOSS, EVK_TREASURE, EVK_ORBS, EVK_DOUBLEXP, EVK_ZONE, EVK_METEOR, EVK_PARKOUR, EVK_PARKOUR }
+                : new[] { EVK_BOSS, EVK_BOSS, EVK_TREASURE, EVK_ORBS, EVK_ZONE, EVK_METEOR, EVK_PARKOUR, EVK_PARKOUR, EVK_PARKOUR };
             int kind = bag[evRng.Next(bag.Length)];
-            // un parcours tout seul emmene tout le monde sur une carte : seulement a plusieurs
-            if (kind == EVK_PARKOUR && SessionCount < 3) kind = EVK_BOSS;
+            // jamais deux fois de suite le meme
+            for (int k = 0; k < 4 && kind == lastRandomKind; k++) kind = bag[evRng.Next(bag.Length)];
+            lastRandomKind = kind;
             StartEventAt(kind, x, y, z, lvl);
         }
 
@@ -247,6 +329,9 @@ namespace Jak3Online
                     return T("PARCOURS : ", "PARKOUR: ") + MapName(e.Boss) + T(" - le premier en haut gagne ", " - first to the top wins ")
                         + (e.Boss >= 0 && e.Boss < Maps.Length ? Maps[e.Boss].Reward : 0) + T(" orbes !", " orbs!");
                 case EVK_METEOR: return T("PLUIE DE METEORES - ", "METEOR SHOWER - ") + zone + T(" : tiens bon dans la zone !", ": hold on in the zone!");
+                case EVK_MISSION: return T("MISSION : ", "MISSION: ") + MissionName(e.Boss) + T(" - le premier qui la reussit gagne 2000 orbes !", " - first to complete it wins 2000 orbs!");
+                case EVK_KART: return T("COURSE AUTO sur le circuit : un tour, un vehicule pour chacun - le premier gagne 3000 orbes !", "CAR RACE on the circuit: one lap, a car for everyone - the first wins 3000 orbs!");
+                case EVK_HIDE: return T("CACHE-CACHE au manoir : trouve le personnage ROUGE - le premier gagne 2500 orbes !", "HIDE AND SEEK at the manor: find the RED character - the first wins 2500 orbs!");
                 default: return T("ZONE A CAPTURER - ", "CAPTURE THE ZONE - ") + zone + T(" (2 min)", " (2 min)");
             }
         }
@@ -392,7 +477,7 @@ namespace Jak3Online
                     {
                         // un joueur est arrive en haut du parcours : le premier gagne
                         WorldEvent e = ev;
-                        if (e == null || e.Id != id || e.Kind != EVK_PARKOUR || e.State != 1) return;
+                        if (e == null || e.Id != id || (!MapEventKind(e.Kind) && e.Kind != EVK_MISSION) || e.State != 1) return;
                         if (EventAuthority() == MyId) EndEvent(e, 2, from, NameOf(from));
                         break;
                     }
@@ -447,7 +532,7 @@ namespace Jak3Online
                 winner = l.Count > 0 && l[0].Value >= 5f ? l[0].Key : 0;
                 state = winner != 0 ? 2 : 3;
             }
-            else if ((e.Kind == EVK_TREASURE || e.Kind == EVK_HUNT || e.Kind == EVK_PARKOUR) && winner != 0)
+            else if ((e.Kind == EVK_TREASURE || e.Kind == EVK_HUNT || MapEventKind(e.Kind)) && winner != 0)
                 top = T("Gagne par ", "Won by ") + winnerName;
             string t = top;
             uint wn = winner;
@@ -528,6 +613,30 @@ namespace Jak3Online
                     }
                     else txt = T("Personne n'a fini le parcours", "Nobody finished the parkour");
                     break;
+                case EVK_KART:
+                    if (e.State == 2)
+                    {
+                        txt = T("COURSE AUTO : ", "CAR RACE: ") + NameOf(e.Winner) + T(" gagne la course !", " wins the race!");
+                        if (e.Winner == MyId) { money = 3000; xp = 2000; lock (lk) profil.EventsWon++; }
+                    }
+                    else txt = T("Personne n'a fini la course", "Nobody finished the race");
+                    break;
+                case EVK_HIDE:
+                    if (e.State == 2)
+                    {
+                        txt = T("CACHE-CACHE : ", "HIDE AND SEEK: ") + NameOf(e.Winner) + T(" a trouve le personnage rouge !", " found the red character!");
+                        if (e.Winner == MyId) { money = 2500; xp = 1500; lock (lk) profil.EventsWon++; }
+                    }
+                    else txt = T("Personne n'a trouve le personnage rouge", "Nobody found the red character");
+                    break;
+                case EVK_MISSION:
+                    if (e.State == 2)
+                    {
+                        txt = T("MISSION ", "MISSION ") + MissionName(e.Boss) + T(" : ", ": ") + NameOf(e.Winner) + T(" l'a reussie en premier !", " completed it first!");
+                        if (e.Winner == MyId) { money = 2000; xp = 1500; lock (lk) profil.EventsWon++; }
+                    }
+                    else txt = T("Personne n'a reussi la mission", "Nobody completed the mission");
+                    break;
                 case EVK_ORBS: txt = T("Fin de la pluie d'orbes", "Orb rain is over"); break;
                 case EVK_DOUBLEXP: txt = T("Fin du double XP", "Double XP is over"); break;
             }
@@ -600,14 +709,39 @@ namespace Jak3Online
                 // une seconde dans la zone (au plus une par seconde reelle)
                 if (now - lastZoneTick >= 900 && NearEvent(e.Radius + 3f)) { lastZoneTick = now; lock (lk) myZone += 1f; evSeq++; }
             }
-            else if (action == 5 && e.Kind == EVK_PARKOUR && !e.FoundSent && e.Boss >= 0 && e.Boss < Maps.Length)
+            else if (action >= 10 && action < 13 && e.Kind == EVK_KART)
             {
-                // arrive en haut du parcours : je dois vraiment y etre
+                // point de passage franchi : dans l'ordre et au bon endroit (le tour complet : 25 s au moins)
+                if (kartEvId != e.Id) { kartEvId = e.Id; kartCp = 0; kartCpMs = e.StartMs + 12000; }
+                int k = action - 10;
+                double d = Math.Sqrt(Math.Pow(x / 4096.0 - KartChecks[k * 3], 2) + Math.Pow(y / 4096.0 - KartChecks[k * 3 + 1], 2) + Math.Pow(z / 4096.0 - KartChecks[k * 3 + 2], 2));
+                if (k != kartCp || d > 25.0) { L("course auto : point de passage " + k + " refuse (" + (int)d + " m)"); return; }
+                kartCp++; kartCpMs = now; L("course auto : point de passage " + k + " ok (" + (int)d + " m)");
+            }
+            else if (action == 5 && MapEventKind(e.Kind) && !e.FoundSent && e.Boss >= 0 && e.Boss < Maps.Length)
+            {
+                // course auto : il faut les 3 points de passage (verifies ci-dessus) et un vrai tour
+                if (e.Kind == EVK_KART && (kartEvId != e.Id || kartCp < 3 || now - e.StartMs < 12000 + 18000))
+                { L("course auto : arrivee refusee (points de passage " + (kartEvId == e.Id ? kartCp : 0) + "/3)"); return; }
+                // cache-cache : il faut etre a cote du personnage rouge
+                if (e.Kind == EVK_HIDE)
+                {
+                    int s = (int)(e.Target % HideSpots) * 3;
+                    float hx, hy, hz;
+                    if (!MyPos(out hx, out hy, out hz)) return;
+                    double dh = Math.Sqrt(Math.Pow(hx / 4096.0 - (1500.0 + HideSpotsXyz[s]), 2) + Math.Pow(hy / 4096.0 - (100.0 + HideSpotsXyz[s + 1]), 2)
+                        + Math.Pow(hz / 4096.0 - (-3000.0 + HideSpotsXyz[s + 2]), 2));
+                    if (dh > 8.0) { L("cache-cache : trouve refuse (" + (int)dh + " m)"); return; }
+                }
+                // arrive en haut du parcours / au bout du circuit : je dois vraiment y etre
+                // (cache-cache : sur la carte du manoir)
                 ParkourMap pm = Maps[e.Boss];
                 float mx, my, mz;
                 if (!MyPos(out mx, out my, out mz)) return;
-                double d = Math.Sqrt((mx - pm.FX) * (mx - pm.FX) + (my - pm.FY) * (my - pm.FY) + (mz - pm.FZ) * (mz - pm.FZ)) / 4096.0;
-                if (d > 25.0) { L("parcours : arrivee refusee (" + (int)d + " m)"); return; }
+                bool hide = e.Kind == EVK_HIDE;
+                float rx = hide ? pm.SX : pm.FX, ry = hide ? pm.SY : pm.FY, rz = hide ? pm.SZ : pm.FZ;
+                double d = Math.Sqrt((mx - rx) * (mx - rx) + (my - ry) * (my - ry) + (mz - rz) * (mz - rz)) / 4096.0;
+                if (d > (hide ? 150.0 : 25.0)) { L("parcours : arrivee refusee (" + (int)d + " m)"); return; }
                 e.FoundSent = true;
                 byte[] payload = Build(w => { w.Write((byte)EV_FINISH); w.Write(e.Id); w.Write(now); });
                 SignedEventSend(0, payload);
@@ -628,11 +762,12 @@ namespace Jak3Online
                 if (nextEvent == DateTime.MinValue)
                 {
                     bool soon = Environment.GetEnvironmentVariable("JAK3ONLINE_EVENTS_SOON") == "1";
-                    nextEvent = dn.AddSeconds(soon ? 25 : 180);
+                    nextEvent = dn.AddSeconds(soon ? 25 : 240);
                 }
                 if ((e == null || e.State != 1) && dn >= nextEvent && GameAttached && (uiFlags & 2) != 0)
                 {
-                    nextEvent = dn.AddSeconds(360 + evRng.Next(180));
+                    // pas trop souvent : toutes les 10 a 15 minutes (8 a 12 a partir de 6 joueurs)
+                    nextEvent = dn.AddSeconds(SessionCount >= 6 ? 480 + evRng.Next(240) : 600 + evRng.Next(300));
                     StartRandomEvent();
                 }
             }

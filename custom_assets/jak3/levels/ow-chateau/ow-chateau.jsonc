@@ -1,0 +1,16 @@
+// JAK 3 EN LIGNE : carte "Chateau" (fabriquee par build_maps.py)
+{
+  "long_name": "ow-chateau",
+  "iso_name": "OWCHATEA",
+  "nickname": "och",
+  "gltf_file": "custom_assets/jak3/levels/ow-chateau/ow-chateau.glb",
+  "automatic_wall_detection": true,
+  "automatic_wall_angle": 45.0,
+  "double_sided_collide": false,
+  "base_id": 1200,
+  "custom_models": [
+    "ow-plat",
+    "ow-bateau"
+  ],
+  "actors": []
+}

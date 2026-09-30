@@ -10,6 +10,10 @@
 
 ;; DECOMP BEGINS
 
+;; jak 3 en ligne : premiere personne (cam-states.gc)
+(define-extern *online-fp* symbol)
+(define-extern *cam-eye-forward-offset* float)
+
 (deftype gun-eject (projectile-bounce)
   ()
   )
@@ -836,6 +840,14 @@
               (-> (the-as target gp-0) node-list data 4 bone transform fvec)
               )
             )
+        ;; premiere personne : l'arme tire exactement la ou la camera regarde (mod Jak 4)
+        (when (and *online-fp* (!= *cam-eye-forward-offset* 0.0))
+          (let ((cf (-> (camera-matrix) fvec)))
+            (vector-normalize-copy! (-> (the-as target gp-0) gun fire-dir) cf 1.0)
+            (vector-copy! (-> (the-as target gp-0) gun fire-dir-out) (-> (the-as target gp-0) gun fire-dir))
+            (vector-copy! (-> (the-as target gp-0) gun laser-dir) (-> (the-as target gp-0) gun fire-dir))
+            )
+          )
         )
       (let ((s5-1 self))
         (set! self (the-as gun gp-0))
